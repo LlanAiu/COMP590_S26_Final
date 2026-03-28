@@ -285,7 +285,6 @@ dependencies = [
 name = "auto-archives"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "audioadapter-buffers",
  "cpal",
  "hound",
@@ -296,6 +295,7 @@ dependencies = [
  "tauri",
  "tauri-build",
  "tauri-plugin-opener",
+ "thiserror 2.0.18",
 ]
 
 [[package]]

@@ -6,6 +6,7 @@
 
 // modules
 pub mod commands;
+pub mod error;
 pub mod transcribe;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
