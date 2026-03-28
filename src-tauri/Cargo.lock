@@ -285,6 +285,8 @@ dependencies = [
 name = "auto-archives"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
+ "audioadapter-buffers",
  "cpal",
  "hound",
  "parakeet-rs",
