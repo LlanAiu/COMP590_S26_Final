@@ -33,7 +33,7 @@ pub fn record_audio_to_pcm() -> Result<(), TranscriptionError> {
         .supported_input_configs()
         .map_err(|err| TranscriptionError::InternalError(err.to_string()))?;
 
-    let supported_config = choose_input_config(ranges, 16_000)?;
+    let supported_config = choose_input_config(ranges, 22_500, Some(SampleFormat::I16))?;
 
     let audio_buffer: Arc<Mutex<Vec<f32>>> = Arc::new(Mutex::new(Vec::new()));
     let callback_buffer_ref: Arc<Mutex<Vec<f32>>> = audio_buffer.clone();
@@ -212,9 +212,11 @@ fn resample_rubato(
 fn choose_input_config(
     ranges: SupportedInputConfigs,
     target_hz: u32,
+    preferred_format: Option<SampleFormat>,
 ) -> Result<SupportedStreamConfig, TranscriptionError> {
     let mut best_f32: Option<(SupportedStreamConfig, u32)> = None;
     let mut best_any: Option<(SupportedStreamConfig, u32)> = None;
+    let mut best_pref: Option<(SupportedStreamConfig, u32)> = None;
 
     for range in ranges {
         let min = range.min_sample_rate();
@@ -233,6 +235,15 @@ fn choose_input_config(
             0
         };
 
+        if let Some(pref) = preferred_format {
+            if cfg.sample_format() == pref {
+                match &best_pref {
+                    Some((_, best_diff)) if *best_diff <= diff => {}
+                    _ => best_pref = Some((cfg.clone(), diff)),
+                }
+            }
+        }
+
         if cfg.sample_format() == SampleFormat::F32 {
             match &best_f32 {
                 Some((_, best_diff)) if *best_diff <= diff => {}
@@ -244,6 +255,10 @@ fn choose_input_config(
             Some((_, best_diff)) if *best_diff <= diff => {}
             _ => best_any = Some((cfg.clone(), diff)),
         }
+    }
+
+    if let Some((cfg, _)) = best_pref {
+        return Ok(cfg);
     }
 
     if let Some((cfg, _)) = best_f32 {
