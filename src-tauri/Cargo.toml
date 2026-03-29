@@ -29,4 +29,5 @@ rubato = "1.0.1"
 audioadapter-buffers = "2.0"
 thiserror = "2.0.18"
 dotenvy = "0.15"
+ollama-rs = "0.3.4"
 
