@@ -1,2 +1,3 @@
 // modules
-pub mod chunked_buffer;
+pub mod chunk_buffer;
+pub mod chunk_queue;
