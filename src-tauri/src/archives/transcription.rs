@@ -5,9 +5,10 @@
 // internal
 
 // modules
-pub mod parakeet_impl;
+pub mod constants;
+pub mod downsampler;
+pub mod implementations;
 pub mod recorder;
-pub mod test_impl;
 
 pub trait AudioTranscriber {
     fn start_record_audio(&mut self);

@@ -5,7 +5,7 @@
 // internal
 
 use crate::{
-    archives::transcription::{test_impl::TestTranscriber, AudioTranscriber},
+    archives::transcription::{implementations::test::TestTranscriber, AudioTranscriber},
     globals::Mode,
 };
 
