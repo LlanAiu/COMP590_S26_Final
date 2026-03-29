@@ -11,6 +11,7 @@ use crate::{
 
 // modules
 pub mod transcription;
+pub mod utils;
 
 pub struct Archives {
     transcriber: Box<dyn AudioTranscriber>,
