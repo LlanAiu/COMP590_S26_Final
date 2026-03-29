@@ -28,4 +28,5 @@ hound = "3.5.1"
 rubato = "1.0.1"
 audioadapter-buffers = "2.0"
 thiserror = "2.0.18"
+dotenvy = "0.15"
 

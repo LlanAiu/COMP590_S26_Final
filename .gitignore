@@ -25,3 +25,8 @@ dist-ssr
 
 # Local model configs
 models/
+
+# Environments
+
+.env
+.env.*
