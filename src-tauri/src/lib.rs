@@ -5,8 +5,10 @@
 // internal
 
 // modules
+pub mod archives;
 pub mod commands;
 pub mod error;
+pub mod globals;
 pub mod ollama;
 pub mod transcribe;
 
