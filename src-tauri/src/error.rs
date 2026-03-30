@@ -11,6 +11,8 @@ pub enum TranscriptionError {
     NoDevicesFound,
     #[error("No input sample range supports >= target sample rate of `{0}`")]
     UnsupportedSampleRange(u32),
+    #[error("No input queue set for submodule `{0}`")]
+    NoQueueSet(&'static str),
     #[error("Something went wrong: `{0}`")]
     InternalError(String),
 }
