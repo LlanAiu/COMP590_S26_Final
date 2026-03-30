@@ -3,9 +3,11 @@
 // external
 
 // internal
-
 use crate::{
-    archives::transcription::{implementations::test::TestTranscriber, AudioTranscriber},
+    archives::transcription::{
+        implementations::{parakeet::ParakeetTranscriber, test::TestTranscriber},
+        AudioTranscriber,
+    },
     globals::Mode,
 };
 
@@ -20,10 +22,24 @@ pub struct Archives {
 impl Archives {
     pub fn new(mode: Mode) -> Archives {
         match mode {
-            Mode::TEST => todo!(),
-            Mode::NORMAL => Archives {
+            Mode::TEST => Archives {
                 transcriber: Box::new(TestTranscriber::new()),
             },
+            Mode::NORMAL => Archives {
+                transcriber: Box::new(ParakeetTranscriber::new()),
+            },
         }
+    }
+
+    pub fn start_audio_recording(&mut self) {
+        self.transcriber.start_record_audio();
+    }
+
+    pub fn stop_audio_recording(&mut self) {
+        self.transcriber.stop_record_audio();
+    }
+
+    pub fn get_transcript(&self) -> Vec<String> {
+        self.transcriber.get_transcript()
     }
 }
