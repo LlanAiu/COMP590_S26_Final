@@ -39,11 +39,7 @@ impl Archives {
         self.transcriber.start_record_audio()
     }
 
-    pub fn stop_audio_recording(&mut self) -> Result<(), TranscriptionError> {
+    pub fn stop_audio_recording(&mut self) -> Result<Transcript, TranscriptionError> {
         self.transcriber.stop_record_audio()
-    }
-
-    pub fn get_transcript(&self) -> Result<Transcript, TranscriptionError> {
-        self.transcriber.get_transcript()
     }
 }

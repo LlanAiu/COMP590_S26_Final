@@ -20,11 +20,7 @@ impl AudioTranscriber for TestTranscriber {
         Ok(())
     }
 
-    fn stop_record_audio(&mut self) -> Result<(), TranscriptionError> {
-        Ok(())
-    }
-
-    fn get_transcript(&self) -> Result<Transcript, TranscriptionError> {
+    fn stop_record_audio(&mut self) -> Result<Transcript, TranscriptionError> {
         Ok(vec!["Testing...".into(), "One, two, three...".into()])
     }
 }

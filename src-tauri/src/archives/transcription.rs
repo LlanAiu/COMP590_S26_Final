@@ -13,7 +13,5 @@ pub mod subsystems;
 pub trait AudioTranscriber {
     fn start_record_audio(&mut self) -> Result<(), TranscriptionError>;
 
-    fn stop_record_audio(&mut self) -> Result<(), TranscriptionError>;
-
-    fn get_transcript(&self) -> Result<Transcript, TranscriptionError>;
+    fn stop_record_audio(&mut self) -> Result<Transcript, TranscriptionError>;
 }

@@ -47,14 +47,16 @@ impl AudioTranscriber for ParakeetTranscriber {
 
         self.downsampler.setup_stream(config, audio_rx, sampled_tx);
 
+        self.parakeet.setup_stream(sampled_rx);
+
         Ok(())
     }
 
-    fn stop_record_audio(&mut self) -> Result<(), TranscriptionError> {
-        todo!()
-    }
+    fn stop_record_audio(&mut self) -> Result<Transcript, TranscriptionError> {
+        self.recorder.stop_recording()?;
+        self.downsampler.close_stream();
+        self.parakeet.close_stream();
 
-    fn get_transcript(&self) -> Result<Transcript, TranscriptionError> {
-        todo!()
+        self.parakeet.get_and_clear_transcript()
     }
 }

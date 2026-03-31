@@ -1,6 +1,7 @@
 // builtin
 use std::{
     env,
+    mem::take,
     path::PathBuf,
     sync::{Arc, Mutex},
     thread::{self, JoinHandle},
@@ -103,17 +104,14 @@ impl ParakeetModule {
         }
     }
 
-    pub fn reset_transcript(&self) -> Result<(), TranscriptionError> {
+    pub fn get_and_clear_transcript(&self) -> Result<Transcript, TranscriptionError> {
         let mut guard = self
             .transcript
             .lock()
             .map_err(|err| TranscriptionError::InternalError(err.to_string()))?;
-        guard.clear();
 
-        Ok(())
-    }
+        let transcript = take(&mut *guard);
 
-    pub fn get_transcript(&self) -> Arc<Mutex<Transcript>> {
-        Arc::clone(&self.transcript)
+        Ok(transcript)
     }
 }
