@@ -5,16 +5,16 @@ use crossbeam_channel::{bounded, Receiver, Sender};
 
 // internal
 
-pub struct ChunkChannel<T> {
+pub struct DataChannel<T> {
     sender: Sender<T>,
     receiver: Receiver<T>,
 }
 
-impl<T> ChunkChannel<T> {
-    pub fn new(channel_size: usize) -> ChunkChannel<T> {
+impl<T> DataChannel<T> {
+    pub fn new(channel_size: usize) -> DataChannel<T> {
         let (tx, rx): (Sender<T>, Receiver<T>) = bounded(channel_size);
 
-        ChunkChannel {
+        DataChannel {
             sender: tx,
             receiver: rx,
         }

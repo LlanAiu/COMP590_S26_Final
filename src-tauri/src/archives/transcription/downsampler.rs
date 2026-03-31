@@ -1,5 +1,5 @@
 // builtin
-use std::thread;
+use std::thread::{self, JoinHandle};
 
 // external
 use audioadapter_buffers::owned::InterleavedOwned;
@@ -15,7 +15,7 @@ use crate::{error::TranscriptionError, globals::Chunk};
 
 pub struct Downsampler {
     target_hz: u32,
-    handle: Option<std::thread::JoinHandle<()>>,
+    handle: Option<JoinHandle<()>>,
     stop_sender: Option<Sender<()>>,
 }
 
@@ -54,7 +54,7 @@ impl Downsampler {
                                     }
                                 }
                                 Err(err) => {
-                                    eprintln!("[downsampler] downsample_chunk failed: {:?}", err);
+                                    eprintln!("[DOWNSAMPLER] Failed to downsample chunk: {:?}", err);
                                     continue;
                                 }
                             }
