@@ -7,9 +7,8 @@ use crate::{error::TranscriptionError, globals::Transcript};
 
 // modules
 pub mod constants;
-pub mod downsampler;
 pub mod implementations;
-pub mod recorder;
+pub mod subsystems;
 
 pub trait AudioTranscriber {
     fn start_record_audio(&mut self) -> Result<(), TranscriptionError>;

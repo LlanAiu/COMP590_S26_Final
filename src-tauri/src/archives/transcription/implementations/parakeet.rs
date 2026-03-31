@@ -1,105 +1,60 @@
 // builtin
-use std::{
-    env,
-    path::PathBuf,
-    sync::{Arc, Mutex},
-    thread::{self, JoinHandle},
-};
 
 // external
-use crossbeam_channel::{bounded, select, Receiver, Sender};
-use parakeet_rs::{ParakeetTDT, TimestampMode, Transcriber};
+use cpal::SupportedStreamConfig;
+use crossbeam_channel::bounded;
 
 // internal
-use crate::{
-    archives::transcription::constants::{TRANSCRIPTION_CHANNELS, TRANSCRIPTION_DESIRED_HZ},
-    error::TranscriptionError,
-    globals::{Chunk, Transcript},
+use crate::archives::transcription::constants::{
+    AUDIO_CHANNEL_SIZE, SAMPLED_CHANNEL_SIZE, TRANSCRIPTION_DESIRED_HZ,
 };
+use crate::archives::transcription::subsystems::{
+    downsampler::Downsampler, parakeet_module::ParakeetModule, recorder::AudioRecorder,
+};
+use crate::archives::transcription::AudioTranscriber;
+use crate::error::TranscriptionError;
+use crate::globals::{Chunk, Transcript};
 
 pub struct ParakeetTranscriber {
-    parakeet_path: PathBuf,
-    transcript: Arc<Mutex<Transcript>>,
-    parakeet_thread: Option<JoinHandle<()>>,
-    stop_sender: Option<Sender<()>>,
+    recorder: AudioRecorder,
+    downsampler: Downsampler,
+    parakeet: ParakeetModule,
 }
 
 impl ParakeetTranscriber {
     pub fn new() -> Result<ParakeetTranscriber, TranscriptionError> {
-        let model_path: PathBuf = match env::var("TAURI_MODEL_DIR") {
-            Ok(dir) => PathBuf::from(dir),
-            Err(_) => {
-                return Err(TranscriptionError::InternalError(
-                    "TDT model path not found in environment!".to_string(),
-                ))
-            }
-        };
+        let recorder: AudioRecorder = AudioRecorder::new()?;
+        let downsampler: Downsampler = Downsampler::new(TRANSCRIPTION_DESIRED_HZ);
+        let parakeet: ParakeetModule = ParakeetModule::new()?;
 
         Ok(ParakeetTranscriber {
-            parakeet_path: model_path,
-            transcript: Arc::new(Mutex::new(Vec::new())),
-            parakeet_thread: None,
-            stop_sender: None,
+            recorder,
+            downsampler,
+            parakeet,
         })
     }
+}
 
-    pub fn setup_stream(&mut self, sampled_receiver: Receiver<Chunk>) {
-        let model_path_str: PathBuf = self.parakeet_path.clone();
-        let transcript_ref = Arc::clone(&self.transcript);
-        let (stop_tx, stop_rx) = bounded::<()>(1);
+impl AudioTranscriber for ParakeetTranscriber {
+    fn start_record_audio(&mut self) -> Result<(), TranscriptionError> {
+        let config: SupportedStreamConfig = self.recorder.start_recording()?;
 
-        let handle = thread::spawn(move || {
-            let mut parakeet = match ParakeetTDT::from_pretrained(&model_path_str, None) {
-                Ok(model) => model,
-                Err(err) => {
-                    eprintln!("Failed to load parakeet model: {:?}", err);
-                    return;
-                }
-            };
+        let (audio_tx, audio_rx) = bounded::<Chunk>(AUDIO_CHANNEL_SIZE);
 
-            loop {
-                select! {
-                    recv(stop_rx) -> _ => {
-                        break;
-                    }
-                    recv(sampled_receiver) -> msg => {
-                        match msg {
-                            Ok(chunk) => {
-                                let res = parakeet.transcribe_samples(
-                                    chunk, TRANSCRIPTION_DESIRED_HZ, TRANSCRIPTION_CHANNELS, Some(TimestampMode::Sentences));
+        let (sampled_tx, sampled_rx) = bounded::<Chunk>(SAMPLED_CHANNEL_SIZE);
 
-                                match res {
-                                    Ok(transcript) => {
-                                        let mut guard = transcript_ref.lock().unwrap();
-                                        guard.push(transcript.text);
-                                        drop(guard);
-                                    }
-                                    Err(err) => {
-                                        eprintln!("[PARAKEET] Failed to transcribe audio: {:?}", err);
-                                        continue;
-                                    }
-                                }
-                            }
-                            Err(_) => {
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-        });
+        self.recorder.setup_downstream(audio_tx)?;
 
-        self.parakeet_thread = Some(handle);
-        self.stop_sender = Some(stop_tx);
+        self.downsampler.setup_stream(config, audio_rx, sampled_tx);
+
+        Ok(())
     }
 
-    pub fn close_stream(&mut self) {
-        if let Some(stop) = self.stop_sender.take() {
-            let _ = stop.send(());
-        }
+    fn stop_record_audio(&mut self) -> Result<(), TranscriptionError> {
+        todo!()
+    }
 
-        if let Some(handle) = self.parakeet_thread.take() {
-            let _ = handle.join();
-        }
+    fn get_transcript(&self) -> Result<Transcript, TranscriptionError> {
+        todo!()
     }
 }
