@@ -1,12 +1,9 @@
 // builtin
 
 // external
+use crossbeam_channel::{bounded, Receiver, Sender};
 
 // internal
-
-use std::mem::take;
-
-use crossbeam_channel::{bounded, Receiver, Sender};
 
 pub struct ChunkChannel<T> {
     sender: Sender<T>,

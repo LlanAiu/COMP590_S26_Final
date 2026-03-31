@@ -14,11 +14,11 @@ use rubato::{
 use crate::{error::TranscriptionError, globals::Chunk};
 
 pub struct Downsampler {
-    target_hz: usize,
+    target_hz: u32,
 }
 
 impl Downsampler {
-    pub fn new(target_hz: usize) -> Downsampler {
+    pub fn new(target_hz: u32) -> Downsampler {
         Downsampler { target_hz }
     }
 
@@ -29,7 +29,7 @@ impl Downsampler {
         sampled_sender: Sender<Chunk>,
     ) {
         let from_hz: usize = config.sample_rate() as usize;
-        let to_hz: usize = self.target_hz;
+        let to_hz: usize = self.target_hz as usize;
         thread::spawn(move || {
             for chunk in audio_receiver.iter() {
                 let res: Result<Chunk, TranscriptionError> =

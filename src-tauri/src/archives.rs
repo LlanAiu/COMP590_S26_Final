@@ -8,7 +8,8 @@ use crate::{
         implementations::{parakeet::ParakeetTranscriber, test::TestTranscriber},
         AudioTranscriber,
     },
-    globals::Mode,
+    error::{ApplicationError, TranscriptionError},
+    globals::{Mode, Transcript},
 };
 
 // modules
@@ -20,26 +21,30 @@ pub struct Archives {
 }
 
 impl Archives {
-    pub fn new(mode: Mode) -> Archives {
+    pub fn new(mode: Mode) -> Result<Archives, ApplicationError> {
         match mode {
-            Mode::TEST => Archives {
+            Mode::TEST => Ok(Archives {
                 transcriber: Box::new(TestTranscriber::new()),
-            },
-            Mode::NORMAL => Archives {
-                transcriber: Box::new(ParakeetTranscriber::new()),
-            },
+            }),
+            Mode::NORMAL => {
+                let transcriber: ParakeetTranscriber = ParakeetTranscriber::new()
+                    .map_err(|err| ApplicationError::InternalError(err.to_string()))?;
+                return Ok(Archives {
+                    transcriber: Box::new(transcriber),
+                });
+            }
         }
     }
 
-    pub fn start_audio_recording(&mut self) {
-        self.transcriber.start_record_audio();
+    pub fn start_audio_recording(&mut self) -> Result<(), TranscriptionError> {
+        self.transcriber.start_record_audio()
     }
 
-    pub fn stop_audio_recording(&mut self) {
-        self.transcriber.stop_record_audio();
+    pub fn stop_audio_recording(&mut self) -> Result<(), TranscriptionError> {
+        self.transcriber.stop_record_audio()
     }
 
-    pub fn get_transcript(&self) -> Vec<String> {
+    pub fn get_transcript(&self) -> Result<Transcript, TranscriptionError> {
         self.transcriber.get_transcript()
     }
 }

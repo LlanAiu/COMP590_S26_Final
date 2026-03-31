@@ -22,3 +22,9 @@ pub enum GenerationError {
     #[error("Something went wrong: `{0}`")]
     InternalError(String),
 }
+
+#[derive(Error, Debug)]
+pub enum ApplicationError {
+    #[error("Something went wrong: `{0}`")]
+    InternalError(String),
+}

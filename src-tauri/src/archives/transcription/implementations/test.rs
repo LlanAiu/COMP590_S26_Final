@@ -3,7 +3,9 @@
 // external
 
 // internal
-use crate::archives::transcription::AudioTranscriber;
+use crate::{
+    archives::transcription::AudioTranscriber, error::TranscriptionError, globals::Transcript,
+};
 
 pub struct TestTranscriber;
 
@@ -14,14 +16,15 @@ impl TestTranscriber {
 }
 
 impl AudioTranscriber for TestTranscriber {
-    fn start_record_audio(&mut self) {}
+    fn start_record_audio(&mut self) -> Result<(), TranscriptionError> {
+        Ok(())
+    }
 
-    fn stop_record_audio(&mut self) {}
+    fn stop_record_audio(&mut self) -> Result<(), TranscriptionError> {
+        Ok(())
+    }
 
-    fn get_transcript(&self) -> Vec<String> {
-        vec![
-            "What is this?".to_string(),
-            "A completely useless system out here".to_string(),
-        ]
+    fn get_transcript(&self) -> Result<Transcript, TranscriptionError> {
+        Ok(vec!["Testing...".into(), "One, two, three...".into()])
     }
 }
