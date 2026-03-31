@@ -1,7 +1,10 @@
 use std::mem::take;
 // builtin
-use std::sync::Arc;
-use std::thread::{self, sleep};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
+use std::thread::{self, sleep, JoinHandle};
 use std::time::Duration;
 
 // external
@@ -10,7 +13,7 @@ use cpal::{
     Device, FromSample, Host, Sample, SampleFormat, Stream, SupportedInputConfigs,
     SupportedStreamConfig,
 };
-use crossbeam_channel::Sender;
+use crossbeam_channel::{Sender, TrySendError};
 use ringbuf::storage::Heap;
 use ringbuf::{traits::*, CachingCons, CachingProd, HeapRb, SharedRb};
 
@@ -25,6 +28,8 @@ pub struct AudioRecorder {
     device: Device,
     consumer: Option<RingBufferConsumer>,
     stream: Option<Stream>,
+    worker: Option<JoinHandle<()>>,
+    shutdown: Option<Arc<AtomicBool>>,
 }
 
 impl AudioRecorder {
@@ -40,35 +45,20 @@ impl AudioRecorder {
             device,
             consumer: None,
             stream: None,
+            worker: None,
+            shutdown: None,
         })
     }
 
     pub fn setup_downstream(&mut self, sender: Sender<Vec<f32>>) -> Result<(), TranscriptionError> {
-        let consumer = take(&mut self.consumer);
-        if let Some(mut cons) = consumer {
-            thread::spawn(move || {
-                let mut tmp: Vec<f32> = Vec::with_capacity(WAV_BUFFER_SIZE);
-                loop {
-                    while tmp.len() < WAV_BUFFER_SIZE {
-                        match cons.try_pop() {
-                            Some(s) => tmp.push(s),
-                            None => {
-                                sleep(Duration::from_millis(2));
-                            }
-                        }
-                    }
+        let consumer: Option<RingBufferConsumer> = take(&mut self.consumer);
+        if let Some(cons) = consumer {
+            let shutdown: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
+            let shutdown_thread: Arc<AtomicBool> = Arc::clone(&shutdown);
 
-                    let chunk: Vec<f32> = take(&mut tmp);
-
-                    match sender.try_send(chunk) {
-                        Ok(()) => {}
-                        Err(_) => {
-                            eprintln!("chunk channel full, dropping chunk");
-                        }
-                    }
-                    tmp.reserve(WAV_BUFFER_SIZE);
-                }
-            });
+            let handle: JoinHandle<()> = spawn_downstream_thread(cons, sender, shutdown_thread);
+            self.worker = Some(handle);
+            self.shutdown = Some(shutdown);
 
             return Ok(());
         }
@@ -81,7 +71,7 @@ impl AudioRecorder {
     pub fn start_recording(&mut self) -> Result<(), TranscriptionError> {
         let ring_buffer = HeapRb::<f32>::new(WAV_BUFFER_SIZE);
 
-        let (prod, cons) = ring_buffer.split();
+        let (prod, cons): (RingBufferProducer, RingBufferConsumer) = ring_buffer.split();
         self.consumer = Some(cons);
 
         let stream: Stream = self.build_input_stream(prod)?;
@@ -102,6 +92,19 @@ impl AudioRecorder {
                 .map_err(|err| TranscriptionError::InternalError(err.to_string()))?;
             drop(stream);
         }
+
+        sleep(Duration::from_millis(20));
+
+        if let Some(shutdown) = self.shutdown.take() {
+            shutdown.store(true, Ordering::SeqCst);
+        }
+
+        if let Some(handle) = self.worker.take() {
+            if let Err(_) = handle.join() {
+                eprintln!("consumer thread panicked during join");
+            }
+        }
+
         Ok(())
     }
 
@@ -127,6 +130,52 @@ impl AudioRecorder {
             producer,
         )
     }
+}
+
+fn spawn_downstream_thread(
+    mut consumer: RingBufferConsumer,
+    sender: Sender<Vec<f32>>,
+    shutdown: Arc<AtomicBool>,
+) -> JoinHandle<()> {
+    thread::spawn(move || {
+        let mut tmp: Vec<f32> = Vec::with_capacity(WAV_BUFFER_SIZE);
+        loop {
+            if shutdown.load(Ordering::Relaxed) {
+                break;
+            }
+
+            while tmp.len() < WAV_BUFFER_SIZE {
+                match consumer.try_pop() {
+                    Some(s) => tmp.push(s),
+                    None => {
+                        if shutdown.load(Ordering::Relaxed) {
+                            break;
+                        }
+                        sleep(Duration::from_millis(2));
+                    }
+                }
+            }
+
+            if tmp.is_empty() {
+                continue;
+            }
+
+            let chunk: Vec<f32> = take(&mut tmp);
+
+            match sender.try_send(chunk) {
+                Ok(()) => {}
+                Err(err) => match err {
+                    TrySendError::Full(_) => {
+                        eprintln!("chunk channel full, dropping chunk");
+                    }
+                    TrySendError::Disconnected(_) => {
+                        break;
+                    }
+                },
+            }
+            tmp.reserve(WAV_BUFFER_SIZE);
+        }
+    })
 }
 
 fn choose_input_config(
