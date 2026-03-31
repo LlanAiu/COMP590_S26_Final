@@ -1,5 +1,8 @@
+use std::mem::take;
 // builtin
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use std::thread::{self, sleep};
+use std::time::Duration;
 
 // external
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
@@ -7,16 +10,20 @@ use cpal::{
     Device, FromSample, Host, Sample, SampleFormat, Stream, SupportedInputConfigs,
     SupportedStreamConfig,
 };
+use crossbeam_channel::Sender;
+use ringbuf::storage::Heap;
+use ringbuf::{traits::*, CachingCons, CachingProd, HeapRb, SharedRb};
 
 // internal
 use crate::archives::transcription::constants::{TRANSCRIPTION_DESIRED_HZ, WAV_BUFFER_SIZE};
-use crate::archives::utils::chunk_buffer::ChunkBuffer;
-use crate::archives::utils::chunk_queue::ChunkQueue;
 use crate::error::TranscriptionError;
+
+type RingBufferProducer = CachingProd<Arc<SharedRb<Heap<f32>>>>;
+type RingBufferConsumer = CachingCons<Arc<SharedRb<Heap<f32>>>>;
 
 pub struct AudioRecorder {
     device: Device,
-    buffer: Arc<Mutex<ChunkBuffer<f32>>>,
+    consumer: Option<RingBufferConsumer>,
     stream: Option<Stream>,
 }
 
@@ -29,31 +36,55 @@ impl AudioRecorder {
             None => return Err(TranscriptionError::NoDevicesFound),
         };
 
-        let buffer: ChunkBuffer<f32> = ChunkBuffer::new(WAV_BUFFER_SIZE);
-
         Ok(AudioRecorder {
             device,
-            buffer: Arc::new(Mutex::new(buffer)),
+            consumer: None,
             stream: None,
         })
     }
 
-    pub fn set_output_queue(
-        &self,
-        queue_ref: &Arc<Mutex<ChunkQueue<f32>>>,
-    ) -> Result<(), TranscriptionError> {
-        let mut guard = self
-            .buffer
-            .lock()
-            .map_err(|err| TranscriptionError::InternalError(err.to_string()))?;
+    pub fn setup_downstream(&mut self, sender: Sender<Vec<f32>>) -> Result<(), TranscriptionError> {
+        let consumer = take(&mut self.consumer);
+        if let Some(mut cons) = consumer {
+            thread::spawn(move || {
+                let mut tmp: Vec<f32> = Vec::with_capacity(WAV_BUFFER_SIZE);
+                loop {
+                    while tmp.len() < WAV_BUFFER_SIZE {
+                        match cons.try_pop() {
+                            Some(s) => tmp.push(s),
+                            None => {
+                                sleep(Duration::from_millis(2));
+                            }
+                        }
+                    }
 
-        guard.set_out_queue(queue_ref);
+                    let chunk: Vec<f32> = take(&mut tmp);
 
-        Ok(())
+                    match sender.try_send(chunk) {
+                        Ok(()) => {}
+                        Err(_) => {
+                            eprintln!("chunk channel full, dropping chunk");
+                        }
+                    }
+                    tmp.reserve(WAV_BUFFER_SIZE);
+                }
+            });
+
+            return Ok(());
+        }
+
+        Err(TranscriptionError::InternalError(
+            "No consumer found for audio recorder!".into(),
+        ))
     }
 
     pub fn start_recording(&mut self) -> Result<(), TranscriptionError> {
-        let stream: Stream = self.build_input_stream()?;
+        let ring_buffer = HeapRb::<f32>::new(WAV_BUFFER_SIZE);
+
+        let (prod, cons) = ring_buffer.split();
+        self.consumer = Some(cons);
+
+        let stream: Stream = self.build_input_stream(prod)?;
 
         stream
             .play()
@@ -74,15 +105,16 @@ impl AudioRecorder {
         Ok(())
     }
 
-    fn build_input_stream(&self) -> Result<Stream, TranscriptionError> {
+    fn build_input_stream(
+        &mut self,
+        producer: RingBufferProducer,
+    ) -> Result<Stream, TranscriptionError> {
         let ranges: SupportedInputConfigs = self
             .device
             .supported_input_configs()
             .map_err(|err| TranscriptionError::InternalError(err.to_string()))?;
 
         let supported_config = choose_input_config(ranges, TRANSCRIPTION_DESIRED_HZ)?;
-
-        let callback_buffer_ref: Arc<Mutex<ChunkBuffer<f32>>> = Arc::clone(&self.buffer);
 
         let channels: usize = supported_config.config().channels.into();
         let sample_format = supported_config.sample_format();
@@ -92,7 +124,7 @@ impl AudioRecorder {
             sample_format,
             &supported_config,
             channels,
-            callback_buffer_ref,
+            producer,
         )
     }
 }
@@ -149,54 +181,54 @@ fn build_input_for_sample_format(
     sample_format: SampleFormat,
     supported_config: &SupportedStreamConfig,
     channels: usize,
-    buffer: Arc<Mutex<ChunkBuffer<f32>>>,
+    buffer: RingBufferProducer,
 ) -> Result<Stream, TranscriptionError> {
-    match sample_format {
-        SampleFormat::F32 => device.build_input_stream(
+    if sample_format == SampleFormat::F32 {
+        let mut buffer = buffer;
+        device.build_input_stream(
             &supported_config.config(),
             move |data: &[f32], _: &cpal::InputCallbackInfo| {
-                process_and_append(data, channels, &buffer)
+                process_and_append(data, channels, &mut buffer)
             },
             move |err| println!("{:?}", err),
             None,
-        ),
-        SampleFormat::I16 => device.build_input_stream(
+        )
+    } else if sample_format == SampleFormat::I16 {
+        let mut buffer = buffer;
+        device.build_input_stream(
             &supported_config.config(),
             move |data: &[i16], _: &cpal::InputCallbackInfo| {
-                process_and_append(data, channels, &buffer)
+                process_and_append(data, channels, &mut buffer)
             },
             move |err| println!("{:?}", err),
             None,
-        ),
-        SampleFormat::U16 => device.build_input_stream(
+        )
+    } else if sample_format == SampleFormat::U16 {
+        let mut buffer = buffer;
+        device.build_input_stream(
             &supported_config.config(),
             move |data: &[u16], _: &cpal::InputCallbackInfo| {
-                process_and_append(data, channels, &buffer)
+                process_and_append(data, channels, &mut buffer)
             },
             move |err| println!("{:?}", err),
             None,
-        ),
-        _ => {
-            return Err(TranscriptionError::InternalError(
-                "Unsupported sample format".to_string(),
-            ))
-        }
+        )
+    } else {
+        return Err(TranscriptionError::InternalError(
+            "Unsupported sample format".to_string(),
+        ));
     }
     .map_err(|err| TranscriptionError::InternalError(err.to_string()))
 }
 
-fn process_and_append<T: Sample>(data: &[T], channels: usize, buffer: &Arc<Mutex<ChunkBuffer<f32>>>)
+fn process_and_append<T: Sample>(data: &[T], channels: usize, buffer: &mut RingBufferProducer)
 where
     f32: FromSample<T>,
 {
     if channels == 1 {
         if !data.is_empty() {
-            let mut tmp: Vec<f32> = Vec::with_capacity(data.len());
             for &s in data.iter() {
-                tmp.push(f32::from_sample(s));
-            }
-            if let Ok(mut buffer) = buffer.lock() {
-                let _ = buffer.add_slice(&tmp);
+                buffer.try_push(f32::from_sample(s));
             }
         }
     } else if channels > 1 {
@@ -204,17 +236,13 @@ where
         if frames == 0 {
             return;
         }
-        let mut mono: Vec<f32> = Vec::with_capacity(frames);
         for frame_idx in 0..frames {
             let base = frame_idx * channels;
             let mut sum = 0.0f32;
             for ch in 0..channels {
                 sum += f32::from_sample(data[base + ch]);
             }
-            mono.push(sum / (channels as f32));
-        }
-        if let Ok(mut buffer) = buffer.lock() {
-            let _ = buffer.add_slice(&mono);
+            buffer.try_push(sum / (channels as f32));
         }
     }
 }

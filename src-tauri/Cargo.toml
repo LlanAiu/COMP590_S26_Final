@@ -30,4 +30,6 @@ audioadapter-buffers = "2.0"
 thiserror = "2.0.18"
 dotenvy = "0.15"
 ollama-rs = "0.3.4"
+ringbuf = "0.4.8"
+crossbeam-channel = "0.5.15"
 
