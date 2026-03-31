@@ -54,8 +54,8 @@ impl AudioTranscriber for ParakeetTranscriber {
 
     fn stop_record_audio(&mut self) -> Result<Transcript, TranscriptionError> {
         self.recorder.stop_recording()?;
-        self.downsampler.close_stream();
-        self.parakeet.close_stream();
+        self.downsampler.close_stream()?;
+        self.parakeet.close_stream()?;
 
         self.parakeet.get_and_clear_transcript()
     }

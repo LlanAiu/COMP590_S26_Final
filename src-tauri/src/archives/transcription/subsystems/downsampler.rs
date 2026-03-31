@@ -71,14 +71,21 @@ impl Downsampler {
         self.handle = Some(handle);
     }
 
-    pub fn close_stream(&mut self) {
+    pub fn close_stream(&mut self) -> Result<(), TranscriptionError> {
         if let Some(stop) = self.stop_sender.take() {
-            let _ = stop.send(());
+            stop.send(())
+                .map_err(|err| TranscriptionError::ShutdownError(err.to_string()))?;
         }
 
         if let Some(handle) = self.handle.take() {
-            let _ = handle.join();
+            if let Err(_) = handle.join() {
+                return Err(TranscriptionError::ShutdownError(
+                    "[DOWNSAMPLER] Failed to close downsampler thread".into(),
+                ));
+            }
         }
+
+        Ok(())
     }
 }
 

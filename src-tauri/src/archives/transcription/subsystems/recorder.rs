@@ -102,7 +102,9 @@ impl AudioRecorder {
 
         if let Some(handle) = self.worker.take() {
             if let Err(_) = handle.join() {
-                eprintln!("consumer thread panicked during join");
+                return Err(TranscriptionError::ShutdownError(
+                    "[RECORDER] Failed to close audio buffer thread".into(),
+                ));
             }
         }
 

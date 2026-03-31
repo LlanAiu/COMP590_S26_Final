@@ -94,14 +94,21 @@ impl ParakeetModule {
         self.stop_sender = Some(stop_tx);
     }
 
-    pub fn close_stream(&mut self) {
+    pub fn close_stream(&mut self) -> Result<(), TranscriptionError> {
         if let Some(stop) = self.stop_sender.take() {
-            let _ = stop.send(());
+            stop.send(())
+                .map_err(|err| TranscriptionError::ShutdownError(err.to_string()))?;
         }
 
         if let Some(handle) = self.parakeet_thread.take() {
-            let _ = handle.join();
+            if let Err(_) = handle.join() {
+                return Err(TranscriptionError::ShutdownError(
+                    "[PARAKEET] Failed to close parakeet thread".into(),
+                ));
+            }
         }
+
+        Ok(())
     }
 
     pub fn get_and_clear_transcript(&self) -> Result<Transcript, TranscriptionError> {

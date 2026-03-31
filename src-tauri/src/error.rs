@@ -13,6 +13,8 @@ pub enum TranscriptionError {
     UnsupportedSampleRange(u32),
     #[error("No input queue set for submodule `{0}`")]
     NoQueueSet(&'static str),
+    #[error("Failure occured during shutdown: `{0}`")]
+    ShutdownError(String),
     #[error("Something went wrong: `{0}`")]
     InternalError(String),
 }
