@@ -20,6 +20,7 @@ use ringbuf::{traits::*, CachingCons, CachingProd, HeapRb, SharedRb};
 // internal
 use crate::archives::transcription::constants::{TRANSCRIPTION_DESIRED_HZ, WAV_BUFFER_SIZE};
 use crate::error::TranscriptionError;
+use crate::globals::Chunk;
 
 type RingBufferProducer = CachingProd<Arc<SharedRb<Heap<f32>>>>;
 type RingBufferConsumer = CachingCons<Arc<SharedRb<Heap<f32>>>>;
@@ -68,13 +69,13 @@ impl AudioRecorder {
         ))
     }
 
-    pub fn start_recording(&mut self) -> Result<(), TranscriptionError> {
+    pub fn start_recording(&mut self) -> Result<SupportedStreamConfig, TranscriptionError> {
         let ring_buffer = HeapRb::<f32>::new(WAV_BUFFER_SIZE);
 
         let (prod, cons): (RingBufferProducer, RingBufferConsumer) = ring_buffer.split();
         self.consumer = Some(cons);
 
-        let stream: Stream = self.build_input_stream(prod)?;
+        let (stream, config): (Stream, SupportedStreamConfig) = self.build_input_stream(prod)?;
 
         stream
             .play()
@@ -82,7 +83,7 @@ impl AudioRecorder {
 
         self.stream = Some(stream);
 
-        Ok(())
+        Ok(config)
     }
 
     pub fn stop_recording(&mut self) -> Result<(), TranscriptionError> {
@@ -111,7 +112,7 @@ impl AudioRecorder {
     fn build_input_stream(
         &mut self,
         producer: RingBufferProducer,
-    ) -> Result<Stream, TranscriptionError> {
+    ) -> Result<(Stream, SupportedStreamConfig), TranscriptionError> {
         let ranges: SupportedInputConfigs = self
             .device
             .supported_input_configs()
@@ -134,7 +135,7 @@ impl AudioRecorder {
 
 fn spawn_downstream_thread(
     mut consumer: RingBufferConsumer,
-    sender: Sender<Vec<f32>>,
+    sender: Sender<Chunk>,
     shutdown: Arc<AtomicBool>,
 ) -> JoinHandle<()> {
     thread::spawn(move || {
@@ -231,8 +232,8 @@ fn build_input_for_sample_format(
     supported_config: &SupportedStreamConfig,
     channels: usize,
     buffer: RingBufferProducer,
-) -> Result<Stream, TranscriptionError> {
-    if sample_format == SampleFormat::F32 {
+) -> Result<(Stream, SupportedStreamConfig), TranscriptionError> {
+    let stream = if sample_format == SampleFormat::F32 {
         let mut buffer = buffer;
         device.build_input_stream(
             &supported_config.config(),
@@ -267,7 +268,9 @@ fn build_input_for_sample_format(
             "Unsupported sample format".to_string(),
         ));
     }
-    .map_err(|err| TranscriptionError::InternalError(err.to_string()))
+    .map_err(|err| TranscriptionError::InternalError(err.to_string()))?;
+
+    return Ok((stream, supported_config.clone()));
 }
 
 fn process_and_append<T: Sample>(data: &[T], channels: usize, buffer: &mut RingBufferProducer)
