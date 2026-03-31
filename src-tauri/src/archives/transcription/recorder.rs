@@ -280,7 +280,9 @@ where
     if channels == 1 {
         if !data.is_empty() {
             for &s in data.iter() {
-                buffer.try_push(f32::from_sample(s));
+                if buffer.try_push(f32::from_sample(s)).is_err() {
+                    eprintln!("Failed to push sample to buffer");
+                }
             }
         }
     } else if channels > 1 {
@@ -294,7 +296,9 @@ where
             for ch in 0..channels {
                 sum += f32::from_sample(data[base + ch]);
             }
-            buffer.try_push(sum / (channels as f32));
+            if buffer.try_push(sum / (channels as f32)).is_err() {
+                eprintln!("Failed to push sample to buffer");
+            }
         }
     }
 }

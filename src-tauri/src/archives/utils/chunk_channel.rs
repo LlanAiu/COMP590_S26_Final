@@ -20,11 +20,11 @@ impl<T> ChunkChannel<T> {
         }
     }
 
-    pub fn get_sender(&mut self) -> Sender<T> {
+    pub fn get_sender(&self) -> Sender<T> {
         self.sender.clone()
     }
 
-    pub fn get_receiver(&mut self) -> Receiver<T> {
+    pub fn get_receiver(&self) -> Receiver<T> {
         self.receiver.clone()
     }
 }

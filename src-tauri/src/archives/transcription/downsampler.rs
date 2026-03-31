@@ -4,7 +4,7 @@ use std::thread;
 // external
 use audioadapter_buffers::owned::InterleavedOwned;
 use cpal::SupportedStreamConfig;
-use crossbeam_channel::{Receiver, Sender};
+use crossbeam_channel::{bounded, select, Receiver, Sender};
 use rubato::{
     Async, FixedAsync, Resampler, SincInterpolationParameters, SincInterpolationType,
     WindowFunction,
@@ -15,11 +15,17 @@ use crate::{error::TranscriptionError, globals::Chunk};
 
 pub struct Downsampler {
     target_hz: u32,
+    handle: Option<std::thread::JoinHandle<()>>,
+    stop_sender: Option<Sender<()>>,
 }
 
 impl Downsampler {
     pub fn new(target_hz: u32) -> Downsampler {
-        Downsampler { target_hz }
+        Downsampler {
+            target_hz,
+            handle: None,
+            stop_sender: None,
+        }
     }
 
     pub fn setup_stream(
@@ -30,24 +36,49 @@ impl Downsampler {
     ) {
         let from_hz: usize = config.sample_rate() as usize;
         let to_hz: usize = self.target_hz as usize;
-        thread::spawn(move || {
-            for chunk in audio_receiver.iter() {
-                let res: Result<Chunk, TranscriptionError> =
-                    downsample_chunk(chunk, from_hz, to_hz);
+        let (stop_tx, stop_rx) = bounded::<()>(1);
 
-                match res {
-                    Ok(processed) => {
-                        if sampled_sender.send(processed).is_err() {
+        let handle = thread::spawn(move || loop {
+            select! {
+                recv(stop_rx) -> _ => {
+                    break;
+                }
+                recv(audio_receiver) -> msg => {
+                    match msg {
+                        Ok(chunk) => {
+                            let res: Result<Chunk, TranscriptionError> = downsample_chunk(chunk, from_hz, to_hz);
+                            match res {
+                                Ok(processed) => {
+                                    if sampled_sender.send(processed).is_err() {
+                                        break;
+                                    }
+                                }
+                                Err(err) => {
+                                    eprintln!("[downsampler] downsample_chunk failed: {:?}", err);
+                                    continue;
+                                }
+                            }
+                        }
+                        Err(_) => {
                             break;
                         }
                     }
-                    Err(err) => {
-                        eprintln!("[downsampler] downsample_chunk failed: {:?}", err);
-                        continue;
-                    }
-                };
+                }
             }
         });
+
+        self.stop_sender = Some(stop_tx);
+        self.handle = Some(handle);
+    }
+
+    pub fn close_stream(&mut self) {
+        if let Some(stop) = self.stop_sender.take() {
+            let _ = stop.send(());
+        }
+
+        if let Some(handle) = self.handle.take() {
+            let _ = handle.join();
+        }
     }
 }
 

@@ -3,6 +3,7 @@
 // external
 use cpal::SupportedStreamConfig;
 
+use crate::archives::transcription::constants::{SAMPLER_CHANNEL_SIZE, TRANSCRIBER_CHANNE_SIZE};
 // internal
 use crate::archives::transcription::{
     constants::TRANSCRIPTION_DESIRED_HZ, downsampler::Downsampler,
@@ -39,6 +40,19 @@ impl ParakeetTranscriber {
 impl AudioTranscriber for ParakeetTranscriber {
     fn start_record_audio(&mut self) -> Result<(), TranscriptionError> {
         let config: SupportedStreamConfig = self.recorder.start_recording()?;
+
+        let sampler_channel: ChunkChannel<Chunk> = ChunkChannel::<Chunk>::new(SAMPLER_CHANNEL_SIZE);
+
+        let transcriber_channel: ChunkChannel<Chunk> =
+            ChunkChannel::<Chunk>::new(TRANSCRIBER_CHANNE_SIZE);
+
+        self.recorder
+            .setup_downstream(sampler_channel.get_sender())?;
+        self.downsampler.setup_stream(
+            config,
+            sampler_channel.get_receiver(),
+            transcriber_channel.get_sender(),
+        );
 
         todo!()
     }
