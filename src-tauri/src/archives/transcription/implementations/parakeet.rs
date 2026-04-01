@@ -40,13 +40,10 @@ impl AudioTranscriber for ParakeetTranscriber {
         let config: SupportedStreamConfig = self.recorder.start_recording()?;
 
         let (audio_tx, audio_rx) = bounded::<Chunk>(AUDIO_CHANNEL_SIZE);
-
         let (sampled_tx, sampled_rx) = bounded::<Chunk>(SAMPLED_CHANNEL_SIZE);
 
         self.recorder.setup_downstream(audio_tx)?;
-
         self.downsampler.setup_stream(config, audio_rx, sampled_tx);
-
         self.parakeet.setup_stream(sampled_rx);
 
         Ok(())

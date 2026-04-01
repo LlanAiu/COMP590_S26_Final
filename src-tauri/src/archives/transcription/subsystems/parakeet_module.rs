@@ -72,7 +72,9 @@ impl ParakeetModule {
                                 match res {
                                     Ok(transcript) => {
                                         let mut guard = transcript_ref.lock().unwrap();
-                                        guard.push(transcript.text);
+                                        for token in transcript.tokens {
+                                            guard.push(token.text);
+                                        }
                                         drop(guard);
                                     }
                                     Err(err) => {
