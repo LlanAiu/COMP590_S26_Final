@@ -13,6 +13,7 @@ use crate::{
 };
 
 // modules
+pub mod summarization;
 pub mod transcription;
 
 pub struct Archives {
