@@ -7,6 +7,7 @@ use crossbeam_channel::{bounded, select, Receiver, Sender};
 // internal
 use crate::{error::SummarizationError, globals::Transcript, ollama::send_message_ollama};
 
+// TODO: Feed the categories in, eventually, maybe provide an Arc to the vec or something?
 const TEMP_CATEGORIES: &[&str] = &["Action Items", "Decisions", "Questions", "Highlights"];
 
 pub struct OllamaModule {
@@ -42,8 +43,8 @@ impl OllamaModule {
                             let mut prompt = String::new();
                             prompt.push_str("You are an assistant that reads an audtio transcript and returns concise notes and assigns each note a category from the provided list.\n\n");
                             prompt.push_str("Categories:\n");
-                            for c in TEMP_CATEGORIES.iter() {
-                                prompt.push_str(&format!("- {}\n", c));
+                            for category in TEMP_CATEGORIES.iter() {
+                                prompt.push_str(&format!("- {}\n", category));
                             }
                             prompt.push_str("\nTranscript:\n");
                             prompt.push_str(&joined);
@@ -54,8 +55,8 @@ impl OllamaModule {
                             tauri::async_runtime::spawn(async move {
                                 let res = send_message_ollama(prompt_clone).await;
                                 match res {
-                                    Ok(resp) => {
-                                        let _ = tx.try_send(resp);
+                                    Ok(response) => {
+                                        let _ = tx.try_send(response);
                                     }
                                     Err(err) => {
                                         eprintln!("[OLLAMA_MODULE] Ollama generation failed: {:?}", err);

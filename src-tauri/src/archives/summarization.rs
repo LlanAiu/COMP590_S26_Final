@@ -3,13 +3,16 @@
 // external
 
 // internal
-use crate::{archives::summarization::summary::Summary, globals::Transcript};
+use crate::error::SummarizationError;
 
 // modules
+pub mod constants;
 pub mod implementations;
 pub mod subsystems;
 pub mod summary;
 
 pub trait Summarizer {
-    fn summarize_transcript(&mut self, transcript: Transcript) -> Summary;
+    fn setup_summarization(&mut self) -> Result<(), SummarizationError>;
+
+    fn close_summarization(&mut self) -> Result<(), SummarizationError>;
 }
