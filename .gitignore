@@ -22,3 +22,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Local model configs
+models/
+
+# Environments
+
+.env
+.env.*
