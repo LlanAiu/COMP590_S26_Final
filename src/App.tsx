@@ -17,6 +17,10 @@ export default function App() {
         invoke("start_audio_recording", {});
     }
 
+    function handleStopRecord() {
+        invoke("stop_audio_recording", {});
+    }
+
     function handleQueryChange(e: React.ChangeEvent<HTMLInputElement>) {
         setQuery(_ => e.target.value);
     }
@@ -28,18 +32,24 @@ export default function App() {
     return (
         <div>
             <h1>It's Beautiful</h1>
-            <button type="button" onClick={handleStartRecord}>Record Audio</button>
 
-            <input
-                type="text"
-                onChange={handleQueryChange}
-                value={query}
-            />
-            <button type="button" onClick={handleSendMessage}>Send Message</button>
+            <div>
+                <button type="button" onClick={handleStartRecord}>Record Audio</button>
+                <button type="button" onClick={handleStopRecord}>Stop Recording</button>
+            </div>
 
-            {
-                response && <div>{response}</div>
-            }
+            <div>
+                <input
+                    type="text"
+                    onChange={handleQueryChange}
+                    value={query}
+                />
+                <button type="button" onClick={handleSendMessage}>Send Message</button>
+
+                {
+                    response && <div>{response}</div>
+                }
+            </div>
         </div>
     );
 }

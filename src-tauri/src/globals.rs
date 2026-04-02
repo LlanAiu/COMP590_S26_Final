@@ -6,8 +6,3 @@
 
 pub type Chunk = Vec<f32>;
 pub type Transcript = Vec<String>;
-
-pub enum Mode {
-    TEST,
-    NORMAL,
-}
