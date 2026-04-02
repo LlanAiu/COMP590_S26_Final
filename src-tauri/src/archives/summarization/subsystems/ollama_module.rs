@@ -1,28 +1,35 @@
 // builtin
+use std::sync::Arc;
 use std::thread::{self, JoinHandle};
+use std::time::Duration;
 
 // external
 use crossbeam_channel::{bounded, select, Receiver, RecvTimeoutError, Sender};
-use std::time::Duration;
-
-use crate::archives::transcription::constants::SHUTDOWN_DRAIN_TIMEOUT_MS;
+use ollama_rs::generation::completion::request::GenerationRequest;
+use ollama_rs::Ollama;
 
 // internal
+use crate::archives::summarization::constants::{OLLAMA_MODEL, SHUTDOWN_DRAIN_TIMEOUT_MS};
 use crate::{
     archives::summarization::summary::Summary, error::SummarizationError, globals::Transcript,
-    ollama::send_message_ollama,
 };
 
 const TEMP_CATEGORIES: &[&str] = &["Action Items", "Decisions", "Questions", "Highlights"];
 
 pub struct OllamaModule {
+    ollama: Arc<Ollama>,
+    model: String,
     handle: Option<JoinHandle<()>>,
     stop_sender: Option<Sender<()>>,
 }
 
 impl OllamaModule {
     pub fn new() -> OllamaModule {
+        let ollama: Ollama = Ollama::default();
+
         OllamaModule {
+            ollama: Arc::new(ollama),
+            model: OLLAMA_MODEL.into(),
             handle: None,
             stop_sender: None,
         }
@@ -34,6 +41,8 @@ impl OllamaModule {
         summary_sender: Sender<Summary>,
     ) {
         let (stop_tx, stop_rx) = bounded::<()>(1);
+        let model = self.model.clone();
+        let ollama_ref = Arc::clone(&self.ollama);
 
         let handle: JoinHandle<()> = thread::spawn(move || loop {
             select! {
@@ -45,8 +54,10 @@ impl OllamaModule {
 
                                 let tx = summary_sender.clone();
                                 let prompt_clone = prompt.clone();
+                                let model_clone = model.clone();
+                                let ollama_clone = Arc::clone(&ollama_ref);
                                 tauri::async_runtime::spawn(async move {
-                                    let res = send_message_ollama(prompt_clone).await;
+                                    let res = send_message_ollama(ollama_clone, prompt_clone, model_clone).await;
                                     match res {
                                         Ok(response) => {
                                             let _ = tx.try_send(Summary::from_raw(response));
@@ -75,8 +86,10 @@ impl OllamaModule {
 
                             let tx = summary_sender.clone();
                             let prompt_clone = prompt.clone();
+                            let model_clone = model.clone();
+                            let ollama_clone = Arc::clone(&ollama_ref);
                             tauri::async_runtime::spawn(async move {
-                                let res = send_message_ollama(prompt_clone).await;
+                                let res = send_message_ollama(ollama_clone, prompt_clone, model_clone).await;
                                 match res {
                                     Ok(response) => {
                                         let _ = tx.try_send(Summary::from_raw(response));
@@ -131,4 +144,17 @@ fn build_prompt(transcript: &Transcript) -> String {
     prompt.push_str("\n\nOutput format: JSON object with keys \"notes\" (array of short notes) and \"categories\" (array of category names corresponding to each note).\n");
 
     prompt
+}
+
+async fn send_message_ollama(
+    ollama: Arc<Ollama>,
+    message: String,
+    model: String,
+) -> Result<String, SummarizationError> {
+    let res = ollama
+        .generate(GenerationRequest::new(model, message))
+        .await
+        .map_err(|err| SummarizationError::InternalError(err.to_string()))?;
+
+    Ok(res.response)
 }

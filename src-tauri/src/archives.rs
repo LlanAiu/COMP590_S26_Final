@@ -4,7 +4,10 @@
 
 // internal
 use crate::{
-    archives::transcription::{implementations::parakeet::ParakeetTranscriber, AudioTranscriber},
+    archives::{
+        summarization::implementations::ollama::OllamaSummarizer,
+        transcription::{implementations::parakeet::ParakeetTranscriber, AudioTranscriber},
+    },
     error::{ApplicationError, TranscriptionError},
 };
 
@@ -14,13 +17,19 @@ pub mod transcription;
 
 pub struct Archives {
     transcriber: ParakeetTranscriber,
+    summarizer: OllamaSummarizer,
 }
 
 impl Archives {
     pub fn new() -> Result<Archives, ApplicationError> {
         let transcriber: ParakeetTranscriber = ParakeetTranscriber::new()
             .map_err(|err| ApplicationError::InternalError(err.to_string()))?;
-        return Ok(Archives { transcriber });
+
+        let summarizer: OllamaSummarizer = OllamaSummarizer::new();
+        return Ok(Archives {
+            transcriber,
+            summarizer,
+        });
     }
 
     pub fn start_audio_recording(&mut self) -> Result<(), TranscriptionError> {
