@@ -2,11 +2,11 @@
 
 // external
 use cpal::SupportedStreamConfig;
-use crossbeam_channel::bounded;
+use crossbeam_channel::{bounded, Receiver};
 
 // internal
 use crate::archives::transcription::constants::{
-    AUDIO_CHANNEL_SIZE, SAMPLED_CHANNEL_SIZE, TRANSCRIPTION_DESIRED_HZ,
+    AUDIO_CHANNEL_SIZE, SAMPLED_CHANNEL_SIZE, TRANSCRIPTION_CHANNEL_SIZE, TRANSCRIPTION_DESIRED_HZ,
 };
 use crate::archives::transcription::subsystems::{
     downsampler::Downsampler, parakeet_module::ParakeetModule, recorder::AudioRecorder,
@@ -36,17 +36,18 @@ impl ParakeetTranscriber {
 }
 
 impl AudioTranscriber for ParakeetTranscriber {
-    fn start_record_audio(&mut self) -> Result<(), TranscriptionError> {
+    fn start_record_audio(&mut self) -> Result<Receiver<Transcript>, TranscriptionError> {
         let config: SupportedStreamConfig = self.recorder.start_recording()?;
 
         let (audio_tx, audio_rx) = bounded::<Chunk>(AUDIO_CHANNEL_SIZE);
         let (sampled_tx, sampled_rx) = bounded::<Chunk>(SAMPLED_CHANNEL_SIZE);
+        let (transcript_tx, transcript_rx) = bounded::<Transcript>(TRANSCRIPTION_CHANNEL_SIZE);
 
         self.recorder.setup_downstream(audio_tx)?;
         self.downsampler.setup_stream(config, audio_rx, sampled_tx);
-        self.parakeet.setup_stream(sampled_rx);
+        self.parakeet.setup_stream(sampled_rx, transcript_tx);
 
-        Ok(())
+        Ok(transcript_rx)
     }
 
     fn stop_record_audio(&mut self) -> Result<Transcript, TranscriptionError> {

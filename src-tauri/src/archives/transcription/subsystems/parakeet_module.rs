@@ -47,7 +47,11 @@ impl ParakeetModule {
         })
     }
 
-    pub fn setup_stream(&mut self, sampled_receiver: Receiver<Chunk>) {
+    pub fn setup_stream(
+        &mut self,
+        sampled_receiver: Receiver<Chunk>,
+        transcript_sender: Sender<Transcript>,
+    ) {
         let model_path_str: PathBuf = self.parakeet_path.clone();
         let transcript_ref = Arc::clone(&self.transcript);
         let (stop_tx, stop_rx) = bounded::<()>(1);
@@ -73,10 +77,16 @@ impl ParakeetModule {
                                     match res {
                                         Ok(transcript) => {
                                             let mut guard = transcript_ref.lock().unwrap();
+                                            let mut sentences: Transcript = Vec::new();
+
                                             for token in transcript.tokens {
-                                                guard.push(token.text);
+                                                guard.push(token.text.clone());
+                                                sentences.push(token.text);
                                             }
-                                            drop(guard);
+
+                                            if transcript_sender.send(sentences).is_err() {
+                                                break;
+                                            }
                                         }
                                         Err(err) => {
                                             eprintln!("[PARAKEET] Failed to transcribe audio while draining: {:?}", err);
@@ -104,10 +114,16 @@ impl ParakeetModule {
                                 match res {
                                     Ok(transcript) => {
                                         let mut guard = transcript_ref.lock().unwrap();
+                                        let mut sentences: Transcript = Vec::new();
+
                                         for token in transcript.tokens {
-                                            guard.push(token.text);
+                                            guard.push(token.text.clone());
+                                            sentences.push(token.text);
                                         }
-                                        drop(guard);
+
+                                        if transcript_sender.send(sentences).is_err() {
+                                            break;
+                                        }
                                     }
                                     Err(err) => {
                                         eprintln!("[PARAKEET] Failed to transcribe audio: {:?}", err);

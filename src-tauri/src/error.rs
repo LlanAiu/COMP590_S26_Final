@@ -20,6 +20,12 @@ pub enum TranscriptionError {
 }
 
 #[derive(Error, Debug)]
+pub enum SummarizationError {
+    #[error("Something went wrong: `{0}`")]
+    InternalError(String),
+}
+
+#[derive(Error, Debug)]
 pub enum GenerationError {
     #[error("Something went wrong: `{0}`")]
     InternalError(String),
