@@ -14,7 +14,7 @@ use crate::{
     archives::summarization::summary::Summary, error::SummarizationError, globals::Transcript,
 };
 
-const TEMP_CATEGORIES: &[&str] = &["Action Items", "Decisions", "Questions", "Highlights"];
+const TEMP_CATEGORIES: &[&str] = &["To-Dos's", "Build Updates", "Things to Research"];
 
 pub struct OllamaModule {
     ollama: Arc<Ollama>,
@@ -60,7 +60,14 @@ impl OllamaModule {
                                     let res = send_message_ollama(ollama_clone, prompt_clone, model_clone).await;
                                     match res {
                                         Ok(response) => {
-                                            let _ = tx.try_send(Summary::from_raw(response));
+                                            match Summary::from_json(&response) {
+                                                Ok(summary) => {
+                                                    let _ = tx.try_send(summary);
+                                                }
+                                                Err(err) => {
+                                                    eprintln!("[OLLAMA_MODULE] Couldn't convert response to summary: {:?}", err);
+                                                }
+                                            };
                                         }
                                         Err(err) => {
                                             eprintln!("[OLLAMA_MODULE] Ollama generation failed while draining: {:?}", err);
@@ -92,7 +99,14 @@ impl OllamaModule {
                                 let res = send_message_ollama(ollama_clone, prompt_clone, model_clone).await;
                                 match res {
                                     Ok(response) => {
-                                        let _ = tx.try_send(Summary::from_raw(response));
+                                        match Summary::from_json(&response) {
+                                            Ok(summary) => {
+                                                let _ = tx.try_send(summary);
+                                            }
+                                            Err(err) => {
+                                                eprintln!("[OLLAMA_MODULE] Couldn't convert response to summary: {:?}", err);
+                                            }
+                                        };
                                     }
                                     Err(err) => {
                                         eprintln!("[OLLAMA_MODULE] Ollama generation failed: {:?}", err);
@@ -146,7 +160,7 @@ fn build_prompt(transcript: &Transcript) -> String {
     }
     prompt.push_str("\nTranscript:\n");
     prompt.push_str(&joined);
-    prompt.push_str("\n\nOutput format: JSON object with keys \"notes\" (array of short notes) and \"categories\" (array of category names corresponding to each note).\n");
+    prompt.push_str("\n\nOutput format: A JSON array of note objects composed of \"content\" (the important idea) and \"category\" (which of the listed categories it best fits under).\n");
 
     prompt
 }

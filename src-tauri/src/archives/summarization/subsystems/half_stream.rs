@@ -107,7 +107,7 @@ impl HalfStream {
         if let Some(stop) = self.stop_sender.take() {
             if let Err(err) = stop.send(()) {
                 eprintln!(
-                    "[PARAKEET] stop sender send failed (likely already disconnected): {}",
+                    "[HALF_STREAM] stop sender send failed (likely already disconnected): {}",
                     err.to_string()
                 );
             }
