@@ -4,6 +4,7 @@
 
 // internal
 
+#[derive(Debug)]
 pub struct Summary {
     pub raw: String,
 }

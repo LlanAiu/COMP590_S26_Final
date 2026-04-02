@@ -85,11 +85,12 @@ impl HalfStream {
                                     }
                                 }
                             }
-                            Err(_) => {
+                            Err(err) => {
                                 if !buffer.is_empty() {
                                     let remaining = buffer.drain(..).collect::<Vec<String>>();
                                     let _ = consolidated_sender.send(remaining);
                                 }
+                                eprintln!("[HALF_STREAM] Processing channel disconnected: {:?}", err.to_string());
                                 break;
                             }
                         }
@@ -104,8 +105,12 @@ impl HalfStream {
 
     pub fn close_stream(&mut self) -> Result<(), SummarizationError> {
         if let Some(stop) = self.stop_sender.take() {
-            stop.send(())
-                .map_err(|err| SummarizationError::InternalError(err.to_string()))?;
+            if let Err(err) = stop.send(()) {
+                eprintln!(
+                    "[PARAKEET] stop sender send failed (likely already disconnected): {}",
+                    err.to_string()
+                );
+            }
         }
 
         if let Some(handle) = self.handle.take() {

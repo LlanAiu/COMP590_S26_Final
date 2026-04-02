@@ -100,7 +100,8 @@ impl OllamaModule {
                                 }
                             });
                         }
-                        Err(_) => {
+                        Err(err) => {
+                            eprintln!("[OLLAMA_MODULE] Processing channel disconnected: {:?}", err.to_string());
                             break;
                         }
                     }
@@ -114,8 +115,12 @@ impl OllamaModule {
 
     pub fn close_stream(&mut self) -> Result<(), SummarizationError> {
         if let Some(stop) = self.stop_sender.take() {
-            stop.send(())
-                .map_err(|err| SummarizationError::InternalError(err.to_string()))?;
+            if let Err(err) = stop.send(()) {
+                eprintln!(
+                    "[OLLAMA_MODULE] stop sender send failed (likely already disconnected): {}",
+                    err.to_string()
+                );
+            }
         }
 
         if let Some(handle) = self.handle.take() {
