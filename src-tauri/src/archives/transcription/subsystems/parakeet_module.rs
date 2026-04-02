@@ -5,15 +5,18 @@ use std::{
     path::PathBuf,
     sync::{Arc, Mutex},
     thread::{self, JoinHandle},
+    time::Duration,
 };
 
 // external
-use crossbeam_channel::{bounded, select, Receiver, Sender};
+use crossbeam_channel::{bounded, select, Receiver, RecvTimeoutError, Sender};
 use parakeet_rs::{ParakeetTDT, TimestampMode, Transcriber};
 
 // internal
 use crate::{
-    archives::transcription::constants::{TRANSCRIPTION_CHANNELS, TRANSCRIPTION_DESIRED_HZ},
+    archives::transcription::constants::{
+        SHUTDOWN_DRAIN_TIMEOUT_MS, TRANSCRIPTION_CHANNELS, TRANSCRIPTION_DESIRED_HZ,
+    },
     error::TranscriptionError,
     globals::{Chunk, Transcript},
 };
@@ -61,6 +64,35 @@ impl ParakeetModule {
             loop {
                 select! {
                     recv(stop_rx) -> _ => {
+                        loop {
+                            match sampled_receiver.recv_timeout(Duration::from_millis(SHUTDOWN_DRAIN_TIMEOUT_MS)) {
+                                Ok(chunk) => {
+                                    let res = parakeet.transcribe_samples(
+                                        chunk, TRANSCRIPTION_DESIRED_HZ, TRANSCRIPTION_CHANNELS, Some(TimestampMode::Sentences));
+
+                                    match res {
+                                        Ok(transcript) => {
+                                            let mut guard = transcript_ref.lock().unwrap();
+                                            for token in transcript.tokens {
+                                                guard.push(token.text);
+                                            }
+                                            drop(guard);
+                                        }
+                                        Err(err) => {
+                                            eprintln!("[PARAKEET] Failed to transcribe audio while draining: {:?}", err);
+                                            continue;
+                                        }
+                                    }
+                                }
+                                Err(RecvTimeoutError::Timeout) => {
+                                    break;
+                                }
+                                Err(RecvTimeoutError::Disconnected) => {
+                                    break;
+                                }
+                            }
+                        }
+
                         break;
                     }
                     recv(sampled_receiver) -> msg => {
@@ -83,7 +115,8 @@ impl ParakeetModule {
                                     }
                                 }
                             }
-                            Err(_) => {
+                            Err(err) => {
+                                eprintln!("[PARAKEET] Audio channel disconnected: {:?}", err.to_string());
                                 break;
                             }
                         }
@@ -98,8 +131,12 @@ impl ParakeetModule {
 
     pub fn close_stream(&mut self) -> Result<(), TranscriptionError> {
         if let Some(stop) = self.stop_sender.take() {
-            stop.send(())
-                .map_err(|err| TranscriptionError::ShutdownError(err.to_string()))?;
+            if let Err(err) = stop.send(()) {
+                eprintln!(
+                    "[PARAKEET] stop sender send failed (likely already disconnected): {}",
+                    err.to_string()
+                );
+            }
         }
 
         if let Some(handle) = self.parakeet_thread.take() {

@@ -1,19 +1,40 @@
 // builtin
+use std::sync::{Arc, Mutex};
 
 // external
+use tauri::{AppHandle, Manager};
 
 // internal
-use crate::{ollama::send_message_ollama, transcribe::record_audio_to_pcm};
+use crate::{archives::Archives, ollama::send_message_ollama};
+
+type ArchiveRef = Arc<Mutex<Archives>>;
 
 #[tauri::command]
-pub fn start_audio_recording() {
+pub fn start_audio_recording(app: AppHandle) {
     println!("Starting audio recording...");
-    let res = record_audio_to_pcm();
+    let state = app.state::<ArchiveRef>();
+    let mut guard = state.lock().unwrap();
 
-    match res {
+    match guard.start_audio_recording() {
         Ok(_) => {}
         Err(err) => {
-            println!("{}", err)
+            eprintln!("{}", err)
+        }
+    };
+}
+
+#[tauri::command]
+pub fn stop_audio_recording(app: AppHandle) {
+    println!("Stopping audio recording...");
+    let state = app.state::<ArchiveRef>();
+    let mut guard = state.lock().unwrap();
+
+    match guard.stop_audio_recording() {
+        Ok(res) => {
+            println!("GOT TRANSCRIPT: {:?}", res);
+        }
+        Err(err) => {
+            eprintln!("{}", err)
         }
     };
 }
