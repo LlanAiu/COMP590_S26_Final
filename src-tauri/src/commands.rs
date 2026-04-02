@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Manager};
 
 // internal
-use crate::{archives::Archives, ollama::send_message_ollama};
+use crate::archives::Archives;
 
 type ArchiveRef = Arc<Mutex<Archives>>;
 
@@ -35,19 +35,4 @@ pub fn stop_audio_recording(app: AppHandle) {
             eprintln!("{}", err)
         }
     };
-}
-
-#[tauri::command(async)]
-pub async fn send_message(message: String) -> String {
-    println!("Sending message to Ollama...");
-
-    let res = send_message_ollama(message).await;
-
-    match res {
-        Ok(response) => response,
-        Err(err) => {
-            println!("{}", err);
-            "".into()
-        }
-    }
 }

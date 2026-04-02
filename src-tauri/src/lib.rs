@@ -11,7 +11,6 @@ pub mod archives;
 pub mod commands;
 pub mod error;
 pub mod globals;
-pub mod ollama;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -31,7 +30,6 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::start_audio_recording,
             commands::stop_audio_recording,
-            commands::send_message
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
