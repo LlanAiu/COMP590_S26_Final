@@ -19,7 +19,7 @@ use ringbuf::{traits::*, CachingCons, CachingProd, HeapRb, SharedRb};
 
 // internal
 use crate::archives::transcription::constants::{
-    RING_BUFFER_SIZE, TRANSCRIPTION_DESIRED_HZ, WAV_BUFFER_SIZE,
+    TRANSCRIPTION_DESIRED_HZ, WAV_BUFFER_SIZE, WAV_CHUNK_DURATION,
 };
 use crate::error::TranscriptionError;
 use crate::globals::Chunk;
@@ -29,6 +29,7 @@ type RingBufferConsumer = CachingCons<Arc<SharedRb<Heap<f32>>>>;
 
 pub struct AudioRecorder {
     device: Device,
+    chunk_size: usize,
     consumer: Option<RingBufferConsumer>,
     stream: Option<Stream>,
     worker: Option<JoinHandle<()>>,
@@ -46,6 +47,7 @@ impl AudioRecorder {
 
         Ok(AudioRecorder {
             device,
+            chunk_size: WAV_BUFFER_SIZE,
             consumer: None,
             stream: None,
             worker: None,
@@ -59,7 +61,8 @@ impl AudioRecorder {
             let shutdown: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
             let shutdown_thread: Arc<AtomicBool> = Arc::clone(&shutdown);
 
-            let handle: JoinHandle<()> = spawn_downstream_thread(cons, sender, shutdown_thread);
+            let handle: JoinHandle<()> =
+                spawn_downstream_thread(cons, sender, self.chunk_size, shutdown_thread);
             self.worker = Some(handle);
             self.shutdown = Some(shutdown);
 
@@ -72,12 +75,19 @@ impl AudioRecorder {
     }
 
     pub fn start_recording(&mut self) -> Result<SupportedStreamConfig, TranscriptionError> {
-        let ring_buffer = HeapRb::<f32>::new(RING_BUFFER_SIZE);
+        let config: SupportedStreamConfig = self.get_input_stream_config()?;
+
+        let chunk_size = config.sample_rate() * WAV_CHUNK_DURATION;
+        let ring_buffer_size = usize::pow(2, u32::ilog2(chunk_size) + 1u32);
+
+        self.chunk_size = chunk_size as usize;
+
+        let ring_buffer = HeapRb::<f32>::new(ring_buffer_size);
 
         let (prod, cons): (RingBufferProducer, RingBufferConsumer) = ring_buffer.split();
         self.consumer = Some(cons);
 
-        let (stream, config): (Stream, SupportedStreamConfig) = self.build_input_stream(prod)?;
+        let stream: Stream = self.build_input_stream(config.clone(), prod)?;
 
         stream
             .play()
@@ -113,42 +123,40 @@ impl AudioRecorder {
         Ok(())
     }
 
-    fn build_input_stream(
-        &mut self,
-        producer: RingBufferProducer,
-    ) -> Result<(Stream, SupportedStreamConfig), TranscriptionError> {
+    fn get_input_stream_config(&self) -> Result<SupportedStreamConfig, TranscriptionError> {
         let ranges: SupportedInputConfigs = self
             .device
             .supported_input_configs()
             .map_err(|err| TranscriptionError::InternalError(err.to_string()))?;
 
-        let supported_config = choose_input_config(ranges, TRANSCRIPTION_DESIRED_HZ)?;
+        choose_input_config(ranges, TRANSCRIPTION_DESIRED_HZ)
+    }
 
-        let channels: usize = supported_config.config().channels.into();
-        let sample_format = supported_config.sample_format();
+    fn build_input_stream(
+        &mut self,
+        config: SupportedStreamConfig,
+        producer: RingBufferProducer,
+    ) -> Result<Stream, TranscriptionError> {
+        let channels: usize = config.config().channels.into();
+        let sample_format = config.sample_format();
 
-        build_input_for_sample_format(
-            &self.device,
-            sample_format,
-            &supported_config,
-            channels,
-            producer,
-        )
+        build_input_for_sample_format(&self.device, sample_format, &config, channels, producer)
     }
 }
 
 fn spawn_downstream_thread(
     mut consumer: RingBufferConsumer,
     sender: Sender<Chunk>,
+    chunk_size: usize,
     shutdown: Arc<AtomicBool>,
 ) -> JoinHandle<()> {
     thread::spawn(move || {
-        let mut tmp: Vec<f32> = Vec::with_capacity(WAV_BUFFER_SIZE);
+        let mut tmp: Vec<f32> = Vec::with_capacity(chunk_size);
         loop {
             if shutdown.load(Ordering::Relaxed) {
                 while let Some(s) = consumer.try_pop() {
                     tmp.push(s);
-                    if tmp.len() >= WAV_BUFFER_SIZE {
+                    if tmp.len() >= chunk_size {
                         let chunk: Vec<f32> = take(&mut tmp);
                         match sender.try_send(chunk) {
                             Ok(()) => {}
@@ -161,7 +169,7 @@ fn spawn_downstream_thread(
                                 }
                             },
                         }
-                        tmp.reserve(WAV_BUFFER_SIZE);
+                        tmp.reserve(chunk_size);
                     }
                 }
 
@@ -182,7 +190,7 @@ fn spawn_downstream_thread(
                 return;
             }
 
-            while tmp.len() < WAV_BUFFER_SIZE {
+            while tmp.len() < chunk_size {
                 match consumer.try_pop() {
                     Some(s) => tmp.push(s),
                     None => {
@@ -211,7 +219,7 @@ fn spawn_downstream_thread(
                     }
                 },
             }
-            tmp.reserve(WAV_BUFFER_SIZE);
+            tmp.reserve(chunk_size);
         }
     })
 }
@@ -269,7 +277,7 @@ fn build_input_for_sample_format(
     supported_config: &SupportedStreamConfig,
     channels: usize,
     buffer: RingBufferProducer,
-) -> Result<(Stream, SupportedStreamConfig), TranscriptionError> {
+) -> Result<Stream, TranscriptionError> {
     let stream = if sample_format == SampleFormat::F32 {
         let mut buffer = buffer;
         device.build_input_stream(
@@ -307,7 +315,7 @@ fn build_input_for_sample_format(
     }
     .map_err(|err| TranscriptionError::InternalError(err.to_string()))?;
 
-    return Ok((stream, supported_config.clone()));
+    return Ok(stream);
 }
 
 fn process_and_append<T: Sample>(data: &[T], channels: usize, buffer: &mut RingBufferProducer)
