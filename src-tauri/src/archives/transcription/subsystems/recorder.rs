@@ -18,7 +18,9 @@ use ringbuf::storage::Heap;
 use ringbuf::{traits::*, CachingCons, CachingProd, HeapRb, SharedRb};
 
 // internal
-use crate::archives::transcription::constants::{TRANSCRIPTION_DESIRED_HZ, WAV_BUFFER_SIZE};
+use crate::archives::transcription::constants::{
+    RING_BUFFER_SIZE, TRANSCRIPTION_DESIRED_HZ, WAV_BUFFER_SIZE,
+};
 use crate::error::TranscriptionError;
 use crate::globals::Chunk;
 
@@ -70,7 +72,7 @@ impl AudioRecorder {
     }
 
     pub fn start_recording(&mut self) -> Result<SupportedStreamConfig, TranscriptionError> {
-        let ring_buffer = HeapRb::<f32>::new(WAV_BUFFER_SIZE);
+        let ring_buffer = HeapRb::<f32>::new(RING_BUFFER_SIZE);
 
         let (prod, cons): (RingBufferProducer, RingBufferConsumer) = ring_buffer.split();
         self.consumer = Some(cons);
@@ -144,7 +146,40 @@ fn spawn_downstream_thread(
         let mut tmp: Vec<f32> = Vec::with_capacity(WAV_BUFFER_SIZE);
         loop {
             if shutdown.load(Ordering::Relaxed) {
-                break;
+                while let Some(s) = consumer.try_pop() {
+                    tmp.push(s);
+                    if tmp.len() >= WAV_BUFFER_SIZE {
+                        let chunk: Vec<f32> = take(&mut tmp);
+                        match sender.try_send(chunk) {
+                            Ok(()) => {}
+                            Err(err) => match err {
+                                TrySendError::Full(_) => {
+                                    eprintln!("chunk channel full while draining, dropping chunk");
+                                }
+                                TrySendError::Disconnected(_) => {
+                                    return;
+                                }
+                            },
+                        }
+                        tmp.reserve(WAV_BUFFER_SIZE);
+                    }
+                }
+
+                if !tmp.is_empty() {
+                    let chunk: Vec<f32> = take(&mut tmp);
+                    match sender.try_send(chunk) {
+                        Ok(()) => {}
+                        Err(err) => match err {
+                            TrySendError::Full(_) => {
+                                eprintln!("chunk channel full while draining, dropping chunk");
+                            }
+                            TrySendError::Disconnected(_) => {
+                                return;
+                            }
+                        },
+                    }
+                }
+                return;
             }
 
             while tmp.len() < WAV_BUFFER_SIZE {

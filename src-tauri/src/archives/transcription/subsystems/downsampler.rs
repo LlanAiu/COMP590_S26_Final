@@ -4,14 +4,18 @@ use std::thread::{self, JoinHandle};
 // external
 use audioadapter_buffers::owned::InterleavedOwned;
 use cpal::SupportedStreamConfig;
-use crossbeam_channel::{bounded, select, Receiver, Sender};
+use crossbeam_channel::{bounded, select, Receiver, RecvTimeoutError, Sender};
 use rubato::{
     Async, FixedAsync, Resampler, SincInterpolationParameters, SincInterpolationType,
     WindowFunction,
 };
+use std::time::Duration;
 
 // internal
-use crate::{error::TranscriptionError, globals::Chunk};
+use crate::{
+    archives::transcription::constants::SHUTDOWN_DRAIN_TIMEOUT_MS, error::TranscriptionError,
+    globals::Chunk,
+};
 
 pub struct Downsampler {
     target_hz: u32,
@@ -41,6 +45,31 @@ impl Downsampler {
         let handle = thread::spawn(move || loop {
             select! {
                 recv(stop_rx) -> _ => {
+                    loop {
+                        match audio_receiver.recv_timeout(Duration::from_millis(SHUTDOWN_DRAIN_TIMEOUT_MS)) {
+                            Ok(chunk) => {
+                                let res: Result<Chunk, TranscriptionError> = downsample_chunk(chunk, from_hz, to_hz);
+                                match res {
+                                    Ok(processed) => {
+                                        if sampled_sender.send(processed).is_err() {
+                                            break;
+                                        }
+                                    }
+                                    Err(err) => {
+                                        eprintln!("[DOWNSAMPLER] Failed to downsample chunk while draining: {:?}", err);
+                                        continue;
+                                    }
+                                }
+                            }
+                            Err(RecvTimeoutError::Timeout) => {
+                                break;
+                            }
+                            Err(RecvTimeoutError::Disconnected) => {
+                                break;
+                            }
+                        }
+                    }
+
                     break;
                 }
                 recv(audio_receiver) -> msg => {
@@ -59,7 +88,8 @@ impl Downsampler {
                                 }
                             }
                         }
-                        Err(_) => {
+                        Err(err) => {
+                            eprintln!("[DOWNSAMPLER] Audio channel disconnected: {:?}", err.to_string());
                             break;
                         }
                     }
@@ -73,8 +103,12 @@ impl Downsampler {
 
     pub fn close_stream(&mut self) -> Result<(), TranscriptionError> {
         if let Some(stop) = self.stop_sender.take() {
-            stop.send(())
-                .map_err(|err| TranscriptionError::ShutdownError(err.to_string()))?;
+            if let Err(err) = stop.send(()) {
+                eprintln!(
+                    "[DOWNSAMPLER] stop sender send failed (likely already disconnected): {}",
+                    err.to_string()
+                );
+            }
         }
 
         if let Some(handle) = self.handle.take() {

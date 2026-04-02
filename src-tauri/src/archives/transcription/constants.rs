@@ -14,3 +14,5 @@ pub const RING_BUFFER_SIZE: usize = usize::pow(2, usize::ilog2(WAV_BUFFER_SIZE) 
 
 pub const AUDIO_CHANNEL_SIZE: usize = 256;
 pub const SAMPLED_CHANNEL_SIZE: usize = 1024;
+
+pub const SHUTDOWN_DRAIN_TIMEOUT_MS: u64 = 50;

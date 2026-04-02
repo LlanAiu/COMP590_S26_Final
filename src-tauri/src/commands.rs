@@ -30,7 +30,9 @@ pub fn stop_audio_recording(app: AppHandle) {
     let mut guard = state.lock().unwrap();
 
     match guard.stop_audio_recording() {
-        Ok(_) => {}
+        Ok(res) => {
+            println!("GOT TRANSCRIPT: {:?}", res);
+        }
         Err(err) => {
             eprintln!("{}", err)
         }
