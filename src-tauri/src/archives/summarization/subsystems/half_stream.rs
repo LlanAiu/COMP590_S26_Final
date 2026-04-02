@@ -1,10 +1,12 @@
 // builtin
 use std::thread::{self, JoinHandle};
+use std::time::Duration;
 
 // external
-use crossbeam_channel::{bounded, select, Receiver, Sender};
+use crossbeam_channel::{bounded, select, Receiver, RecvTimeoutError, Sender};
 
 // internal
+use crate::archives::summarization::constants::SHUTDOWN_DRAIN_TIMEOUT_MS;
 use crate::{error::SummarizationError, globals::Transcript};
 
 pub struct HalfStream {
@@ -36,10 +38,37 @@ impl HalfStream {
             loop {
                 select! {
                     recv(stop_rx) -> _ => {
-                        if !buffer.is_empty() {
-                            let remaining = buffer.drain(..).collect::<Vec<String>>();
-                            let _ = consolidated_sender.send(remaining);
+                        loop {
+                            match transcript_receiver.recv_timeout(Duration::from_millis(SHUTDOWN_DRAIN_TIMEOUT_MS)) {
+                                Ok(sentences) => {
+                                    for s in sentences.into_iter() {
+                                        buffer.push(s);
+                                    }
+
+                                    while buffer.len() >= chunk_size {
+                                        let out_chunk = buffer.drain(0..chunk_size).collect::<Vec<String>>();
+                                        if consolidated_sender.send(out_chunk).is_err() {
+                                            return;
+                                        }
+                                    }
+                                }
+                                Err(RecvTimeoutError::Timeout) => {
+                                    if !buffer.is_empty() {
+                                        let remaining = buffer.drain(..).collect::<Vec<String>>();
+                                        let _ = consolidated_sender.send(remaining);
+                                    }
+                                    break;
+                                }
+                                Err(RecvTimeoutError::Disconnected) => {
+                                    if !buffer.is_empty() {
+                                        let remaining = buffer.drain(..).collect::<Vec<String>>();
+                                        let _ = consolidated_sender.send(remaining);
+                                    }
+                                    break;
+                                }
+                            }
                         }
+
                         break;
                     }
                     recv(transcript_receiver) -> msg => {

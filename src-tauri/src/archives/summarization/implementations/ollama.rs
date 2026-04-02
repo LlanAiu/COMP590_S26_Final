@@ -1,13 +1,16 @@
 // builtin
 
 // external
-use crossbeam_channel::bounded;
+use crossbeam_channel::{bounded, Receiver};
 
 // internal
-use crate::archives::summarization::constants::{CHUNK_SENTENCE_LENGTH, CONSOLIDATED_CHANNEL_SIZE};
+use crate::archives::summarization::constants::{
+    CHUNK_SENTENCE_LENGTH, CONSOLIDATED_CHANNEL_SIZE, SUMMARY_CHANNEL_SIZE,
+};
 use crate::archives::summarization::subsystems::{
     half_stream::HalfStream, ollama_module::OllamaModule,
 };
+use crate::archives::summarization::summary::Summary;
 use crate::archives::summarization::Summarizer;
 use crate::error::SummarizationError;
 use crate::globals::Transcript;
@@ -27,17 +30,19 @@ impl OllamaSummarizer {
 }
 
 impl Summarizer for OllamaSummarizer {
-    fn setup_summarization(&mut self) -> Result<(), SummarizationError> {
-        let (transcript_tx, transcript_rx) = bounded::<Transcript>(8);
+    fn setup_summarization(
+        &mut self,
+        transcript_receiver: Receiver<Transcript>,
+    ) -> Result<Receiver<Summary>, SummarizationError> {
         let (consolidated_tx, consolidated_rx) = bounded::<Transcript>(CONSOLIDATED_CHANNEL_SIZE);
-        let (summary_tx, summary_rx) = bounded::<String>(1);
+        let (summary_tx, summary_rx) = bounded::<Summary>(SUMMARY_CHANNEL_SIZE);
 
         self.half_stream
-            .setup_stream(transcript_rx, consolidated_tx);
+            .setup_stream(transcript_receiver, consolidated_tx);
 
         self.ollama.setup_stream(consolidated_rx, summary_tx);
 
-        Ok(())
+        Ok(summary_rx)
     }
 
     fn close_summarization(&mut self) -> Result<(), SummarizationError> {
