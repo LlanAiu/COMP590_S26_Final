@@ -6,7 +6,6 @@
 use crate::{
     archives::transcription::{implementations::parakeet::ParakeetTranscriber, AudioTranscriber},
     error::{ApplicationError, TranscriptionError},
-    globals::Transcript,
 };
 
 // modules
@@ -25,10 +24,16 @@ impl Archives {
     }
 
     pub fn start_audio_recording(&mut self) -> Result<(), TranscriptionError> {
-        self.transcriber.start_record_audio()
+        let transcript_rx = self.transcriber.start_record_audio()?;
+
+        Ok(())
     }
 
-    pub fn stop_audio_recording(&mut self) -> Result<Transcript, TranscriptionError> {
-        self.transcriber.stop_record_audio()
+    pub fn stop_audio_recording(&mut self) -> Result<(), TranscriptionError> {
+        let transcript = self.transcriber.stop_record_audio()?;
+
+        println!("GOT TRANSCRIPT: {:?}", transcript);
+
+        Ok(())
     }
 }
