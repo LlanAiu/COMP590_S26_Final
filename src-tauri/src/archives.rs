@@ -19,6 +19,7 @@ use crate::{
 // modules
 pub mod summarization;
 pub mod transcription;
+pub mod volumes;
 
 pub struct Archives {
     transcriber: ParakeetTranscriber,
