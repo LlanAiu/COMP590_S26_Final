@@ -31,6 +31,20 @@ pub enum GenerationError {
     InternalError(String),
 }
 
+#[derive(Debug, Error)]
+pub enum VolumeError {
+    #[error("IO error: {0}")]
+    Io(#[from] std::io::Error),
+    #[error("JSON error: {0}")]
+    Json(#[from] serde_json::Error),
+    #[error("Not found")]
+    NotFound,
+    #[error("Conflict: {0}")]
+    Conflict(String),
+    #[error("Other: {0}")]
+    Other(String),
+}
+
 #[derive(Error, Debug)]
 pub enum ApplicationError {
     #[error("Something went wrong: `{0}`")]
