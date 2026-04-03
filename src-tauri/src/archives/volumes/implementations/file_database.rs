@@ -31,7 +31,7 @@ impl FileDatabase {
             .to_string()
     }
 
-    fn find_dir_for_id(&self, id: &str) -> Option<PathBuf> {
+    fn find_directory_for_id(&self, id: &str) -> Option<PathBuf> {
         if !self.base.exists() {
             return None;
         }
@@ -81,7 +81,6 @@ impl VolumeDatabase for FileDatabase {
             let temp_dir = base.join(format!("{}.tmp", &id));
             let final_dir = base.join(&dir_name);
 
-            // create temp dir
             fs::create_dir_all(&temp_dir)?;
             fs::create_dir_all(temp_dir.join(ATTACHMENTS_DIR))?;
 
@@ -97,16 +96,13 @@ impl VolumeDatabase for FileDatabase {
                 deleted: false,
             };
 
-            // write content
             let content_path = temp_dir.join(CONTENT_FILE);
             FileDatabase::atomic_write(&content_path, req.content.as_bytes())?;
 
-            // write meta
             let meta_path = temp_dir.join(META_FILE);
             let meta_json = serde_json::to_vec_pretty(&meta)?;
             FileDatabase::atomic_write(&meta_path, &meta_json)?;
 
-            // rename into place
             fs::rename(&temp_dir, &final_dir)?;
 
             Ok(Volume {
@@ -124,7 +120,7 @@ impl VolumeDatabase for FileDatabase {
         let id = id.to_string();
         spawn_blocking(move || -> Result<Volume, VolumeError> {
             let db = FileDatabase { base: base.clone() };
-            let dir = match db.find_dir_for_id(&id) {
+            let dir = match db.find_directory_for_id(&id) {
                 Some(d) => d,
                 None => return Err(VolumeError::NotFound),
             };
@@ -136,7 +132,6 @@ impl VolumeDatabase for FileDatabase {
             let meta: VolumeMeta = serde_json::from_str(&meta_str)?;
             let content = fs::read_to_string(&content_path)?;
 
-            // list attachments
             let mut attachments = vec![];
             let attach_dir = dir.join(ATTACHMENTS_DIR);
             if attach_dir.exists() {
@@ -165,7 +160,7 @@ impl VolumeDatabase for FileDatabase {
         let id = id.to_string();
         spawn_blocking(move || -> Result<Volume, VolumeError> {
             let db = FileDatabase { base: base.clone() };
-            let dir = db.find_dir_for_id(&id).ok_or(VolumeError::NotFound)?;
+            let dir = db.find_directory_for_id(&id).ok_or(VolumeError::NotFound)?;
 
             let meta_path = dir.join(META_FILE);
             let content_path = dir.join(CONTENT_FILE);
@@ -173,7 +168,6 @@ impl VolumeDatabase for FileDatabase {
             let meta_str = fs::read_to_string(&meta_path)?;
             let mut meta: VolumeMeta = serde_json::from_str(&meta_str)?;
 
-            // optimistic locking
             if let Some(v) = req.version {
                 if v != meta.version {
                     return Err(VolumeError::Conflict("version mismatch".into()));
@@ -217,7 +211,7 @@ impl VolumeDatabase for FileDatabase {
         let id = id.to_string();
         spawn_blocking(move || -> Result<(), VolumeError> {
             let db = FileDatabase { base: base.clone() };
-            let dir = db.find_dir_for_id(&id).ok_or(VolumeError::NotFound)?;
+            let dir = db.find_directory_for_id(&id).ok_or(VolumeError::NotFound)?;
 
             let trash_dir = base.join(TRASH_DIR);
             fs::create_dir_all(&trash_dir)?;

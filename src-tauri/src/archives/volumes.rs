@@ -10,7 +10,6 @@ use types::{CreateVolumeRequest, UpdateVolumeRequest, Volume, VolumeIndexEntry};
 // modules
 pub mod constants;
 pub mod implementations;
-pub mod subsystems;
 pub mod types;
 
 #[async_trait]
