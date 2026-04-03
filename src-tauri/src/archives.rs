@@ -37,9 +37,9 @@ impl Archives {
 
         let summarizer: OllamaSummarizer = OllamaSummarizer::new();
 
-        let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-        let volumes_dir = cwd.join("volumes");
-        let file_db = FileDatabase::new(volumes_dir);
+        let base_data_dir: PathBuf = dirs_next::data_dir().unwrap_or_else(|| PathBuf::from("."));
+        let volumes_dir: PathBuf = base_data_dir.join("auto-archives").join("volumes");
+        let file_db: FileDatabase = FileDatabase::new(volumes_dir);
 
         return Ok(Archives {
             transcriber,
