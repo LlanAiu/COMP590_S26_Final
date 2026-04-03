@@ -30,6 +30,11 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::start_audio_recording,
             commands::stop_audio_recording,
+            commands::create_volume,
+            commands::read_volume,
+            commands::edit_volume,
+            commands::delete_volume,
+            commands::list_volumes,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

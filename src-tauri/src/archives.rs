@@ -1,17 +1,18 @@
 // builtin
-
-// external
-
 use std::{
+    path::PathBuf,
     sync::{Arc, Mutex},
     thread::{self, JoinHandle},
 };
+
+// external
 
 // internal
 use crate::{
     archives::{
         summarization::{implementations::ollama::OllamaSummarizer, summary::Summary, Summarizer},
         transcription::{implementations::parakeet::ParakeetTranscriber, AudioTranscriber},
+        volumes::implementations::file_database::FileDatabase,
     },
     error::ApplicationError,
 };
@@ -26,6 +27,7 @@ pub struct Archives {
     summarizer: OllamaSummarizer,
     summaries: Arc<Mutex<Vec<Summary>>>,
     summary_thread: Option<JoinHandle<()>>,
+    volume_database: Arc<FileDatabase>,
 }
 
 impl Archives {
@@ -34,11 +36,17 @@ impl Archives {
             .map_err(|err| ApplicationError::InternalError(err.to_string()))?;
 
         let summarizer: OllamaSummarizer = OllamaSummarizer::new();
+
+        let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+        let volumes_dir = cwd.join("volumes");
+        let file_db = FileDatabase::new(volumes_dir);
+
         return Ok(Archives {
             transcriber,
             summarizer,
             summaries: Arc::new(Mutex::new(Vec::new())),
             summary_thread: None,
+            volume_database: Arc::new(file_db),
         });
     }
 
@@ -97,5 +105,9 @@ impl Archives {
         println!("GOT summaries: {:?}", *guard);
 
         Ok(())
+    }
+
+    pub fn get_volume_database(&self) -> Arc<FileDatabase> {
+        Arc::clone(&self.volume_database)
     }
 }
