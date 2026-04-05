@@ -47,4 +47,5 @@ pub struct VolumeIndexEntry {
     pub title: String,
     pub updated_at: String,
     pub snippet: Option<String>,
+    pub description: Option<String>,
 }

@@ -254,6 +254,7 @@ impl VolumeDatabase for FileDatabase {
                     title: meta.title.clone(),
                     updated_at: meta.updated_at.clone(),
                     snippet,
+                    description: meta.description.clone(),
                 });
             }
             Ok(out)

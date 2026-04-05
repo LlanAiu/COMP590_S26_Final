@@ -78,6 +78,7 @@ export default function TestArchives() {
         }
     }
 
+    // biome-ignore lint/correctness/useExhaustiveDependencies: Do once on startup
     useEffect(() => {
         refreshList();
     }, []);
@@ -93,14 +94,14 @@ export default function TestArchives() {
                     <textarea placeholder="Content" value={content} onChange={(e) => setContent(e.target.value)} rows={8} style={{ width: "100%", marginTop: 8 }} />
                     <input placeholder="Description" value={description} onChange={(e) => setDescription(e.target.value)} style={{ width: "100%", marginTop: 8 }} />
                     <div style={{ marginTop: 8 }}>
-                        <button onClick={handleCreate}>Create</button>
-                        <button onClick={handleEdit} disabled={!selectedId} style={{ marginLeft: 8 }}>Save</button>
+                        <button type="button" onClick={handleCreate}>Create</button>
+                        <button type="button" onClick={handleEdit} disabled={!selectedId} style={{ marginLeft: 8 }}>Save</button>
                     </div>
                 </div>
 
                 <div style={{ width: 320 }}>
                     <h3>Volumes</h3>
-                    <button onClick={refreshList}>Refresh</button>
+                    <button type="button" onClick={refreshList}>Refresh</button>
                     <ul>
                         {list.map((it) => (
                             <li key={it.id} style={{ marginTop: 8 }}>
@@ -109,8 +110,8 @@ export default function TestArchives() {
                                 </div>
                                 <div style={{ fontSize: 12, color: "#666" }}>{it.updated_at}</div>
                                 <div style={{ marginTop: 4 }}>
-                                    <button onClick={() => handleRead(it.id)}>Open</button>
-                                    <button onClick={async () => { await handleRead(it.id); }} style={{ marginLeft: 6 }}>Load</button>
+                                    <button type="button" onClick={() => handleRead(it.id)}>Open</button>
+                                    <button type="button" onClick={async () => { await handleRead(it.id); }} style={{ marginLeft: 6 }}>Load</button>
                                 </div>
                             </li>
                         ))}
@@ -133,7 +134,7 @@ export default function TestArchives() {
                             </ReactMarkdown>
                         </div>
                         <div style={{ marginTop: 8 }}>
-                            <button onClick={handleDelete}>Delete</button>
+                            <button type="button" onClick={handleDelete}>Delete</button>
                         </div>
                     </div>
                 ) : (
