@@ -1,0 +1,60 @@
+.test-archives {
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    background: #fff;
+}
+
+.ta-flex {
+    display: flex;
+    gap: 12px;
+}
+
+.ta-main {
+    flex: 1;
+}
+
+.ta-sidebar {
+    width: 320px;
+}
+
+.list-item {
+    margin-top: 8px;
+}
+
+.meta-small {
+    font-size: 12px;
+    color: #666;
+}
+
+.controls {
+    margin-top: 4px;
+}
+
+.selected {
+    margin-top: 12px;
+}
+
+.content-box {
+    background: #fff;
+    padding: 12px;
+    border: 1px solid #eee;
+    border-radius: 6px;
+}
+
+.form-input {
+    width: 100%;
+}
+
+.form-textarea {
+    width: 100%;
+    margin-top: 8px;
+}
+
+.form-row {
+    margin-top: 8px;
+}
+
+.btn-spaced+.btn-spaced {
+    margin-left: 8px;
+}

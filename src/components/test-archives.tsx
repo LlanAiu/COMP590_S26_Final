@@ -1,13 +1,17 @@
+// builtin
+
+// external
 import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeSanitize from "rehype-sanitize";
 import rehypeHighlight from "rehype-highlight";
-import { invoke } from "@tauri-apps/api/core";
 
-type VolumeIndexEntry = { id: string; title: string; updated_at: string; snippet?: string };
-type VolumeMeta = { id: string; title: string; description?: string; created_at: string; updated_at: string; tags: string[]; version: number };
-type Volume = { meta: VolumeMeta; content: string; attachments: string[] };
+// internal
+import * as commands from "../lib/commands";
+import type { VolumeIndexEntry, Volume, CreateVolumeRequest } from "../lib/volumes/types";
+import "./test-archives.css";
+
 
 export default function TestArchives() {
     const [list, setList] = useState<VolumeIndexEntry[]>([]);
@@ -20,7 +24,7 @@ export default function TestArchives() {
 
     async function refreshList() {
         try {
-            const res = await invoke<VolumeIndexEntry[]>("list_volumes");
+            const res = await commands.listVolumes();
             setList(res || []);
         } catch (e) {
             console.error("list error", e);
@@ -29,8 +33,8 @@ export default function TestArchives() {
 
     async function handleCreate() {
         try {
-            const req = { title, content, description, tags: [] };
-            const v = await invoke<Volume>("create_volume", { req });
+            const req: CreateVolumeRequest = { title, content, description, tags: [] };
+            const v = await commands.createVolume(req);
             setVolume(v);
             setSelectedId(v.meta.id);
             await refreshList();
@@ -43,7 +47,7 @@ export default function TestArchives() {
         const useId = id ?? selectedId;
         if (!useId) return;
         try {
-            const v = await invoke<Volume>("read_volume", { id: useId });
+            const v = await commands.readVolume(useId);
             setVolume(v);
             setTitle(v.meta.title);
             setContent(v.content);
@@ -57,8 +61,8 @@ export default function TestArchives() {
     async function handleEdit() {
         if (!selectedId) return;
         try {
-            const req = { title, content, description, tags: [] };
-            const v = await invoke<Volume>("edit_volume", { id: selectedId, req });
+            const req: CreateVolumeRequest = { title, content, description, tags: [] };
+            const v = await commands.editVolume(selectedId, req);
             setVolume(v);
             await refreshList();
         } catch (e) {
@@ -69,7 +73,7 @@ export default function TestArchives() {
     async function handleDelete() {
         if (!selectedId) return;
         try {
-            await invoke<void>("delete_volume", { id: selectedId });
+            await commands.deleteVolume(selectedId);
             setVolume(null);
             setSelectedId(null);
             await refreshList();
@@ -84,34 +88,34 @@ export default function TestArchives() {
     }, []);
 
     return (
-        <div style={{ padding: 12, border: "1px solid #ddd", borderRadius: 6 }}>
+        <div className="test-archives">
             <h2>Test Archives</h2>
 
-            <div style={{ display: "flex", gap: 12 }}>
-                <div style={{ flex: 1 }}>
+            <div className="ta-flex">
+                <div className="ta-main">
                     <h3>Create / Edit</h3>
-                    <input placeholder="Title" value={title} onChange={(e) => setTitle(e.target.value)} style={{ width: "100%" }} />
-                    <textarea placeholder="Content" value={content} onChange={(e) => setContent(e.target.value)} rows={8} style={{ width: "100%", marginTop: 8 }} />
-                    <input placeholder="Description" value={description} onChange={(e) => setDescription(e.target.value)} style={{ width: "100%", marginTop: 8 }} />
-                    <div style={{ marginTop: 8 }}>
-                        <button type="button" onClick={handleCreate}>Create</button>
-                        <button type="button" onClick={handleEdit} disabled={!selectedId} style={{ marginLeft: 8 }}>Save</button>
+                    <input className="form-input" placeholder="Title" value={title} onChange={(e) => setTitle(e.target.value)} />
+                    <textarea className="form-textarea" placeholder="Content" value={content} onChange={(e) => setContent(e.target.value)} rows={8} />
+                    <input className="form-input" placeholder="Description" value={description} onChange={(e) => setDescription(e.target.value)} />
+                    <div className="form-row">
+                        <button className="btn-spaced" type="button" onClick={handleCreate}>Create</button>
+                        <button className="btn-spaced" type="button" onClick={handleEdit} disabled={!selectedId}>Save</button>
                     </div>
                 </div>
 
-                <div style={{ width: 320 }}>
+                <div className="ta-sidebar">
                     <h3>Volumes</h3>
                     <button type="button" onClick={refreshList}>Refresh</button>
                     <ul>
                         {list.map((it) => (
-                            <li key={it.id} style={{ marginTop: 8 }}>
+                            <li key={it.id} className="list-item">
                                 <div>
                                     <strong>{it.title}</strong>
                                 </div>
-                                <div style={{ fontSize: 12, color: "#666" }}>{it.updated_at}</div>
-                                <div style={{ marginTop: 4 }}>
+                                <div className="meta-small">{it.updated_at}</div>
+                                <div className="controls">
                                     <button type="button" onClick={() => handleRead(it.id)}>Open</button>
-                                    <button type="button" onClick={async () => { await handleRead(it.id); }} style={{ marginLeft: 6 }}>Load</button>
+                                    <button className="btn-spaced" type="button" onClick={async () => { await handleRead(it.id); }}>Load</button>
                                 </div>
                             </li>
                         ))}
@@ -119,13 +123,13 @@ export default function TestArchives() {
                 </div>
             </div>
 
-            <div style={{ marginTop: 12 }}>
+            <div className="selected">
                 <h3>Selected</h3>
                 {volume ? (
                     <div>
                         <div><strong>{volume.meta.title}</strong> ({volume.meta.id})</div>
-                        <div style={{ fontSize: 12, color: "#666" }}>{volume.meta.updated_at}</div>
-                        <div style={{ background: "#fff", padding: 12, border: "1px solid #eee", borderRadius: 6 }}>
+                        <div className="meta-small">{volume.meta.updated_at}</div>
+                        <div className="content-box">
                             <ReactMarkdown
                                 remarkPlugins={[remarkGfm]}
                                 rehypePlugins={[rehypeSanitize, rehypeHighlight]}
@@ -133,7 +137,7 @@ export default function TestArchives() {
                                 {volume.content}
                             </ReactMarkdown>
                         </div>
-                        <div style={{ marginTop: 8 }}>
+                        <div className="form-row">
                             <button type="button" onClick={handleDelete}>Delete</button>
                         </div>
                     </div>
