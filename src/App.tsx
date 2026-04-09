@@ -1,7 +1,7 @@
 // builtin
 
 // external
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 // internal
 import Recording from "./components/audio/recording";
@@ -14,6 +14,26 @@ import "./App.css";
 export default function App() {
     const [openVolumeId, setOpenVolumeId] = useState<string | null>(null);
     const [mode, setMode] = useState<"list" | "view" | "edit" | "create">("list");
+
+    useEffect(() => {
+        const log = (e: DragEvent) => {
+            try {
+                console.debug(`[global ${e.type}] target=${(e.target as HTMLElement)?.className || (e.target as HTMLElement)?.id || e.target}`);
+            } catch {
+                console.debug(`[global ${e.type}]`);
+            }
+        };
+        window.addEventListener("dragenter", log, true);
+        window.addEventListener("dragover", log, true);
+        window.addEventListener("dragleave", log, true);
+        window.addEventListener("drop", log, true);
+        return () => {
+            window.removeEventListener("dragenter", log, true);
+            window.removeEventListener("dragover", log, true);
+            window.removeEventListener("dragleave", log, true);
+            window.removeEventListener("drop", log, true);
+        };
+    }, []);
 
     function handleOpen(id: string) {
         setOpenVolumeId(id);

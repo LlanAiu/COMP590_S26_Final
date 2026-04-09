@@ -280,7 +280,11 @@ impl VolumeDatabase for FileDatabase {
                 .file_name()
                 .and_then(|s| s.to_str())
                 .ok_or(VolumeError::Other("invalid child directory name".into()))?;
-            let dest = sub_dir.join(name);
+            let mut dest = sub_dir.join(name);
+            if dest.exists() {
+                let ts = Utc::now().format("%Y%m%d%H%M%S").to_string();
+                dest = sub_dir.join(format!("{}-{}", name, ts));
+            }
 
             fs::rename(&child_dir, &dest)?;
 
@@ -408,30 +412,47 @@ impl VolumeDatabase for FileDatabase {
             if !base.exists() {
                 return Ok(out);
             }
-            for entry in fs::read_dir(&base)? {
-                let e = entry?;
-                if !e.file_type()?.is_dir() {
-                    continue;
+
+            let mut stack = vec![base.clone()];
+            while let Some(dir) = stack.pop() {
+                if let Ok(rd) = fs::read_dir(&dir) {
+                    for e in rd.flatten() {
+                        if let Ok(ft) = e.file_type() {
+                            if ft.is_dir() {
+                                // skip the trash directory entirely
+                                if let Some(name) = e.file_name().to_str() {
+                                    if name == TRASH_DIR {
+                                        continue;
+                                    }
+                                }
+                                // push for recursion
+                                stack.push(e.path());
+                                let meta_path = e.path().join(META_FILE);
+                                if !meta_path.exists() {
+                                    continue;
+                                }
+                                let meta_str = fs::read_to_string(&meta_path)?;
+                                let meta: VolumeMeta = serde_json::from_str(&meta_str)?;
+                                if meta.deleted {
+                                    continue;
+                                }
+                                let snippet = fs::read_to_string(e.path().join(CONTENT_FILE))
+                                    .ok()
+                                    .and_then(|s| {
+                                        Some(s.lines().take(3).collect::<Vec<_>>().join(" "))
+                                    });
+                                out.push(VolumeIndexEntry {
+                                    id: meta.id.clone(),
+                                    title: meta.title.clone(),
+                                    updated_at: meta.updated_at.clone(),
+                                    snippet,
+                                    description: meta.description.clone(),
+                                    parent: meta.parent.clone(),
+                                });
+                            }
+                        }
+                    }
                 }
-                let meta_path = e.path().join(META_FILE);
-                if !meta_path.exists() {
-                    continue;
-                }
-                let meta_str = fs::read_to_string(&meta_path)?;
-                let meta: VolumeMeta = serde_json::from_str(&meta_str)?;
-                if meta.deleted {
-                    continue;
-                }
-                let snippet = fs::read_to_string(e.path().join(CONTENT_FILE))
-                    .ok()
-                    .and_then(|s| Some(s.lines().take(3).collect::<Vec<_>>().join(" ")));
-                out.push(VolumeIndexEntry {
-                    id: meta.id.clone(),
-                    title: meta.title.clone(),
-                    updated_at: meta.updated_at.clone(),
-                    snippet,
-                    description: meta.description.clone(),
-                });
             }
             Ok(out)
         })
