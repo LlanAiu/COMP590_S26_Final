@@ -23,4 +23,10 @@ pub trait VolumeDatabase: Send + Sync {
     async fn delete_volume(&self, id: &str) -> Result<(), VolumeError>;
 
     async fn list_index(&self) -> Result<Vec<VolumeIndexEntry>, VolumeError>;
+
+    // Make `child_id` a sub-volume of `parent_id`. Returns the updated child volume.
+    async fn nest_volume(&self, parent_id: &str, child_id: &str) -> Result<Volume, VolumeError>;
+
+    // Remove a volume from its parent (if any), moving it to the top-level. Returns the updated volume.
+    async fn flatten_volume(&self, id: &str) -> Result<Volume, VolumeError>;
 }

@@ -53,6 +53,30 @@ impl FileDatabase {
         None
     }
 
+    fn find_directory_for_id_recursive(&self, id: &str) -> Option<PathBuf> {
+        if !self.base.exists() {
+            return None;
+        }
+        let mut stack = vec![self.base.clone()];
+        while let Some(dir) = stack.pop() {
+            if let Ok(rd) = fs::read_dir(&dir) {
+                for e in rd.flatten() {
+                    if let Ok(ft) = e.file_type() {
+                        if ft.is_dir() {
+                            if let Some(name) = e.file_name().to_str() {
+                                if name.starts_with(id) {
+                                    return Some(e.path());
+                                }
+                            }
+                            stack.push(e.path());
+                        }
+                    }
+                }
+            }
+        }
+        None
+    }
+
     fn atomic_write(path: &Path, data: &[u8]) -> std::io::Result<()> {
         let tmp = path.with_extension("tmp");
         if let Some(parent) = tmp.parent() {
@@ -92,6 +116,7 @@ impl VolumeDatabase for FileDatabase {
                 created_at: now.clone(),
                 updated_at: now.clone(),
                 tags: req.tags.clone(),
+                parent: None,
                 version: 1,
                 deleted: false,
             };
@@ -220,6 +245,157 @@ impl VolumeDatabase for FileDatabase {
             let dest = trash_dir.join(format!("{}-{}", name, ts));
             fs::rename(&dir, &dest)?;
             Ok(())
+        })
+        .await
+        .map_err(|e| VolumeError::Other(format!("JoinError: {}", e)))?
+    }
+
+    async fn nest_volume(&self, parent_id: &str, child_id: &str) -> Result<Volume, VolumeError> {
+        let base = self.base.clone();
+        let parent_id = parent_id.to_string();
+        let child_id = child_id.to_string();
+        spawn_blocking(move || -> Result<Volume, VolumeError> {
+            let db = FileDatabase { base: base.clone() };
+            if parent_id == child_id {
+                return Err(VolumeError::Other(
+                    "cannot nest a volume into itself".into(),
+                ));
+            }
+
+            let parent_dir = db
+                .find_directory_for_id_recursive(&parent_id)
+                .ok_or(VolumeError::NotFound)?;
+            let child_dir = db
+                .find_directory_for_id_recursive(&child_id)
+                .ok_or(VolumeError::NotFound)?;
+
+            if parent_dir.starts_with(&child_dir) {
+                return Err(VolumeError::Other("cannot nest into descendant".into()));
+            }
+
+            let sub_dir = parent_dir.join("subvolumes");
+            fs::create_dir_all(&sub_dir)?;
+
+            let name = child_dir
+                .file_name()
+                .and_then(|s| s.to_str())
+                .ok_or(VolumeError::Other("invalid child directory name".into()))?;
+            let dest = sub_dir.join(name);
+
+            fs::rename(&child_dir, &dest)?;
+
+            let meta_path = dest.join(META_FILE);
+            let meta_str = fs::read_to_string(&meta_path)?;
+            let mut meta: VolumeMeta = serde_json::from_str(&meta_str)?;
+            meta.parent = Some(parent_id.clone());
+            meta.updated_at = Utc::now().to_rfc3339();
+            meta.version = meta.version.saturating_add(1);
+
+            let meta_json = serde_json::to_vec_pretty(&meta)?;
+            FileDatabase::atomic_write(&meta_path, &meta_json)?;
+
+            let content = fs::read_to_string(dest.join(CONTENT_FILE))?;
+
+            let mut attachments = vec![];
+            let attach_dir = dest.join(ATTACHMENTS_DIR);
+            if attach_dir.exists() {
+                for entry in fs::read_dir(attach_dir).unwrap_or_else(|_| fs::read_dir(".").unwrap())
+                {
+                    if let Ok(e) = entry {
+                        if let Some(name) = e.file_name().to_str() {
+                            attachments.push(name.to_string());
+                        }
+                    }
+                }
+            }
+
+            Ok(Volume {
+                meta,
+                content,
+                attachments,
+            })
+        })
+        .await
+        .map_err(|e| VolumeError::Other(format!("JoinError: {}", e)))?
+    }
+
+    async fn flatten_volume(&self, id: &str) -> Result<Volume, VolumeError> {
+        let base = self.base.clone();
+        let id = id.to_string();
+        spawn_blocking(move || -> Result<Volume, VolumeError> {
+            let db = FileDatabase { base: base.clone() };
+            let dir = db
+                .find_directory_for_id_recursive(&id)
+                .ok_or(VolumeError::NotFound)?;
+
+            let meta_path = dir.join(META_FILE);
+            let meta_str = fs::read_to_string(&meta_path)?;
+            let mut meta: VolumeMeta = serde_json::from_str(&meta_str)?;
+
+            if meta.parent.is_none() {
+                // already top-level
+                let content = fs::read_to_string(dir.join(CONTENT_FILE))?;
+                let mut attachments = vec![];
+                let attach_dir = dir.join(ATTACHMENTS_DIR);
+                if attach_dir.exists() {
+                    for entry in
+                        fs::read_dir(attach_dir).unwrap_or_else(|_| fs::read_dir(".").unwrap())
+                    {
+                        if let Ok(e) = entry {
+                            if let Some(name) = e.file_name().to_str() {
+                                attachments.push(name.to_string());
+                            }
+                        }
+                    }
+                }
+                return Ok(Volume {
+                    meta,
+                    content,
+                    attachments,
+                });
+            }
+
+            // move to base
+            let name = dir
+                .file_name()
+                .and_then(|s| s.to_str())
+                .ok_or(VolumeError::Other("invalid directory name".into()))?;
+            let mut dest = base.join(name);
+            if dest.exists() {
+                let ts = Utc::now().format("%Y%m%d%H%M%S").to_string();
+                dest = base.join(format!("{}-{}", name, ts));
+            }
+
+            fs::rename(&dir, &dest)?;
+
+            meta.parent = None;
+            meta.updated_at = Utc::now().to_rfc3339();
+            meta.version = meta.version.saturating_add(1);
+
+            let meta_path = dest.join(META_FILE);
+            let meta_json = serde_json::to_vec_pretty(&meta)?;
+            FileDatabase::atomic_write(&meta_path, &meta_json)?;
+
+            let content = fs::read_to_string(dest.join(CONTENT_FILE))?;
+
+            let mut attachments = vec![];
+            let attach_dir = dest.join(ATTACHMENTS_DIR);
+            if attach_dir.exists() {
+                for entry in fs::read_dir(attach_dir).unwrap_or_else(|_| fs::read_dir(".").unwrap())
+                {
+                    if let Ok(e) = entry {
+                        if let Some(name) = e.file_name().to_str() {
+                            attachments.push(name.to_string());
+                        }
+                    }
+                }
+            }
+
+            Ok(Volume {
+                meta,
+                content,
+                attachments,
+            })
         })
         .await
         .map_err(|e| VolumeError::Other(format!("JoinError: {}", e)))?

@@ -13,6 +13,7 @@ pub struct VolumeMeta {
     pub created_at: String,
     pub updated_at: String,
     pub tags: Vec<String>,
+    pub parent: Option<String>,
     pub version: u64,
     pub deleted: bool,
 }
