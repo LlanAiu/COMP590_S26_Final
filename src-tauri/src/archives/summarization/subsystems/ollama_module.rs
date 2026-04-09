@@ -10,6 +10,8 @@ use ollama_rs::Ollama;
 
 // internal
 use crate::archives::summarization::constants::{OLLAMA_MODEL, SHUTDOWN_DRAIN_TIMEOUT_MS};
+use crate::archives::volumes::implementations::file_database::FileDatabase;
+use crate::archives::volumes::VolumeDatabase;
 use crate::{
     archives::summarization::summary::Summary, error::SummarizationError, globals::Transcript,
 };
@@ -21,6 +23,7 @@ pub struct OllamaModule {
     model: String,
     handle: Option<JoinHandle<()>>,
     stop_sender: Option<Sender<()>>,
+    categories_db: Option<Arc<FileDatabase>>,
 }
 
 impl OllamaModule {
@@ -32,7 +35,14 @@ impl OllamaModule {
             model: OLLAMA_MODEL.into(),
             handle: None,
             stop_sender: None,
+            categories_db: None,
         }
+    }
+
+    pub fn new_with_db(db: Option<Arc<FileDatabase>>) -> OllamaModule {
+        let mut m = OllamaModule::new();
+        m.categories_db = db;
+        m
     }
 
     pub fn setup_stream(
@@ -43,6 +53,7 @@ impl OllamaModule {
         let (stop_tx, stop_rx) = bounded::<()>(1);
         let model = self.model.clone();
         let ollama_ref = Arc::clone(&self.ollama);
+        let categories_db_clone = self.categories_db.clone();
 
         let handle: JoinHandle<()> = thread::spawn(move || loop {
             select! {
@@ -50,7 +61,27 @@ impl OllamaModule {
                     loop {
                         match consolidated_receiver.recv_timeout(Duration::from_millis(SHUTDOWN_DRAIN_TIMEOUT_MS)) {
                             Ok(sentences) => {
-                                let prompt = build_prompt(&sentences);
+                                let mut categories: Vec<String> = TEMP_CATEGORIES.iter().map(|s| s.to_string()).collect();
+                                if let Some(db) = categories_db_clone.as_ref() {
+                                    match tauri::async_runtime::block_on(db.list_index()) {
+                                        Ok(list) => {
+                                            if !list.is_empty() {
+                                                categories = list
+                                                    .into_iter()
+                                                    .map(|e| match e.description {
+                                                        Some(d) if !d.trim().is_empty() => format!("{} — {}", e.title, d.trim()),
+                                                        _ => e.title,
+                                                    })
+                                                    .collect();
+                                            }
+                                        }
+                                        Err(err) => {
+                                            eprintln!("[OLLAMA_MODULE] Failed to load categories from DB: {}", err.to_string());
+                                        }
+                                    }
+                                }
+
+                                let prompt = build_prompt(&sentences, &categories);
 
                                 let tx = summary_sender.clone();
                                 let prompt_clone = prompt.clone();
@@ -89,7 +120,27 @@ impl OllamaModule {
                 recv(consolidated_receiver) -> msg => {
                     match msg {
                         Ok(sentences) => {
-                            let prompt = build_prompt(&sentences);
+                            let mut categories: Vec<String> = TEMP_CATEGORIES.iter().map(|s| s.to_string()).collect();
+                            if let Some(db) = categories_db_clone.as_ref() {
+                                match tauri::async_runtime::block_on(db.list_index()) {
+                                    Ok(list) => {
+                                        if !list.is_empty() {
+                                            categories = list
+                                                .into_iter()
+                                                .map(|e| match e.description {
+                                                    Some(d) if !d.trim().is_empty() => format!("{} — {}", e.title, d.trim()),
+                                                    _ => e.title,
+                                                })
+                                                .collect();
+                                        }
+                                    }
+                                    Err(err) => {
+                                        eprintln!("[OLLAMA_MODULE] Failed to load categories from DB: {}", err.to_string());
+                                    }
+                                }
+                            }
+
+                            let prompt = build_prompt(&sentences, &categories);
 
                             let tx = summary_sender.clone();
                             let prompt_clone = prompt.clone();
@@ -149,18 +200,18 @@ impl OllamaModule {
     }
 }
 
-fn build_prompt(transcript: &Transcript) -> String {
+fn build_prompt(transcript: &Transcript, categories: &[String]) -> String {
     let joined = transcript.join("\n");
 
     let mut prompt = String::new();
     prompt.push_str("You are an assistant that reads an audio transcript and returns concise notes and assigns each note a category from the provided list.\n\n");
-    prompt.push_str("Categories:\n");
-    for category in TEMP_CATEGORIES.iter() {
+    prompt.push_str("Categories (Name - Description):\n");
+    for category in categories.iter() {
         prompt.push_str(&format!("- {}\n", category));
     }
     prompt.push_str("\nTranscript:\n");
     prompt.push_str(&joined);
-    prompt.push_str("\n\nOutput format: A JSON array of note objects composed of \"content\" (the important idea) and \"category\" (which of the listed categories it best fits under).\n");
+    prompt.push_str("\n\nOutput format: A JSON array of note objects composed of \"content\" (the important idea) and \"category\" (which of the listed category names it best fits under).\n");
 
     prompt
 }

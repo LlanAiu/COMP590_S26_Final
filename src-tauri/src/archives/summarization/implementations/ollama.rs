@@ -1,5 +1,7 @@
 // builtin
 
+use std::sync::Arc;
+
 // external
 use crossbeam_channel::{bounded, Receiver};
 
@@ -12,6 +14,7 @@ use crate::archives::summarization::subsystems::{
 };
 use crate::archives::summarization::summary::Summary;
 use crate::archives::summarization::Summarizer;
+use crate::archives::volumes::implementations::file_database::FileDatabase;
 use crate::error::SummarizationError;
 use crate::globals::Transcript;
 
@@ -21,10 +24,10 @@ pub struct OllamaSummarizer {
 }
 
 impl OllamaSummarizer {
-    pub fn new() -> OllamaSummarizer {
+    pub fn new(db: Option<Arc<FileDatabase>>) -> OllamaSummarizer {
         OllamaSummarizer {
             half_stream: HalfStream::new(CHUNK_SENTENCE_LENGTH),
-            ollama: OllamaModule::new(),
+            ollama: OllamaModule::new_with_db(db),
         }
     }
 }

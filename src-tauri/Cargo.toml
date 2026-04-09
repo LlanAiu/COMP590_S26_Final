@@ -32,4 +32,9 @@ dotenvy = "0.15"
 ollama-rs = "0.3.4"
 ringbuf = "0.4.8"
 crossbeam-channel = "0.5.15"
+async-trait = "0.1"
+uuid = { version = "1", features = ["v4"] }
+chrono = { version = "0.4", features = ["serde"] }
+dirs-next = "2"
+futures = "0.3"
 

@@ -13,3 +13,32 @@
     -moz-osx-font-smoothing: grayscale;
     -webkit-text-size-adjust: 100%;
 }
+
+.app-layout {
+    display: flex;
+    gap: 16px;
+}
+
+.app-main {
+    flex: 1;
+}
+
+.app-sidebar {
+    width: 420px;
+}
+
+.spacing-top {
+    margin-top: 24px;
+}
+
+.sidebar-section {
+    margin-top: 12px;
+}
+
+.sidebar-actions {
+    margin-top: 8px;
+}
+
+.btn-close {
+    margin-left: 8px;
+}
