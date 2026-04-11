@@ -13,6 +13,7 @@ use std::{
 use crate::{
     archives::{
         summarization::{implementations::ollama::OllamaSummarizer, summary::Summary, Summarizer},
+        control::subsystems::OllamaController,
         transcription::{implementations::parakeet::ParakeetTranscriber, AudioTranscriber},
         volumes::implementations::file_database::FileDatabase,
     },
@@ -31,6 +32,7 @@ pub struct Archives {
     summaries: Arc<Mutex<Vec<Summary>>>,
     summary_thread: Option<JoinHandle<()>>,
     volume_database: Arc<FileDatabase>,
+        control: Arc<OllamaController>,
 }
 
 impl Archives {
@@ -43,7 +45,8 @@ impl Archives {
         let file_db: Arc<FileDatabase> = Arc::new(FileDatabase::new(volumes_dir));
 
         let db_ref: Arc<FileDatabase> = Arc::clone(&file_db);
-        let summarizer: OllamaSummarizer = OllamaSummarizer::new(Some(db_ref));
+        let summarizer: OllamaSummarizer = OllamaSummarizer::new(Some(db_ref.clone()));
+        let controller = Arc::new(OllamaController::new(None));
 
         return Ok(Archives {
             transcriber,
@@ -51,7 +54,32 @@ impl Archives {
             summaries: Arc::new(Mutex::new(Vec::new())),
             summary_thread: None,
             volume_database: file_db,
+            control: controller,
         });
+    }
+
+    pub fn run_control_on_summary(&self, summary: Summary) -> Result<Vec<String>, ApplicationError> {
+        // gather index snapshot
+        let db_handle = Arc::clone(&self.volume_database);
+        let index_res = tauri::async_runtime::block_on(db_handle.list_index());
+        let index = match index_res {
+            Ok(i) => i,
+            Err(e) => return Err(ApplicationError::InternalError(format!("failed to list volumes: {}", e.to_string()))),
+        };
+
+        // interpret via controller
+        let actions_res = tauri::async_runtime::block_on(self.control.interpret(&summary, &index));
+        let actions = match actions_res {
+            Ok(a) => a,
+            Err(e) => return Err(ApplicationError::InternalError(format!("control interpret failed: {:?}", e))),
+        };
+
+        // apply
+        let apply_res = self.control.apply_actions(Arc::clone(&self.volume_database), actions);
+        match apply_res {
+            Ok(r) => Ok(r),
+            Err(e) => Err(ApplicationError::InternalError(format!("control apply failed: {:?}", e))),
+        }
     }
 
     pub fn start_audio_recording(&mut self) -> Result<(), ApplicationError> {
