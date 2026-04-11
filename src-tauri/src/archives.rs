@@ -20,6 +20,7 @@ use crate::{
 };
 
 // modules
+pub mod control;
 pub mod summarization;
 pub mod transcription;
 pub mod volumes;

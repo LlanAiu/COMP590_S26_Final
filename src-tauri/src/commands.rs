@@ -128,6 +128,40 @@ pub async fn nest_volume(
 }
 
 #[tauri::command]
+pub async fn merge_volumes(app: AppHandle, a_id: String, b_id: String, req: CreateVolumeRequest) -> Result<Volume, String> {
+    println!("merge_volumes called a={} b={}", a_id, b_id);
+    let state = app.state::<ArchiveRef>().clone();
+    let db = {
+        let guard = state.lock().unwrap();
+        guard.get_volume_database()
+    };
+
+    let res = db.merge_volumes(&a_id, &b_id, req).await;
+    match &res {
+        Ok(_) => println!("merge_volumes ok a={} b={}", a_id, b_id),
+        Err(e) => eprintln!("merge_volumes error a={} b={} err={}", a_id, b_id, e),
+    }
+    res.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn split_volume(app: AppHandle, id: String, first: CreateVolumeRequest, second: CreateVolumeRequest) -> Result<Vec<Volume>, String> {
+    println!("split_volume called id={}", id);
+    let state = app.state::<ArchiveRef>().clone();
+    let db = {
+        let guard = state.lock().unwrap();
+        guard.get_volume_database()
+    };
+
+    let res = db.split_volume(&id, first, second).await;
+    match &res {
+        Ok(_) => println!("split_volume ok id={}", id),
+        Err(e) => eprintln!("split_volume error id={} err={}", id, e),
+    }
+    res.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub async fn flatten_volume(app: AppHandle, id: String) -> Result<Volume, String> {
     println!("flatten_volume called id={}", id);
     let state = app.state::<ArchiveRef>().clone();

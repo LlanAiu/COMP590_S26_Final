@@ -29,4 +29,23 @@ pub trait VolumeDatabase: Send + Sync {
 
     // Remove a volume from its parent (if any), moving it to the top-level. Returns the updated volume.
     async fn flatten_volume(&self, id: &str) -> Result<Volume, VolumeError>;
+
+    // Merge two volumes into a new volume. The provided `req` fully determines the
+    // metadata and content of the resulting merged volume. Returns the new volume.
+    async fn merge_volumes(
+        &self,
+        a_id: &str,
+        b_id: &str,
+        req: CreateVolumeRequest,
+    ) -> Result<Volume, VolumeError>;
+
+    // Split a single volume into two new volumes. Each `CreateVolumeRequest` fully
+    // determines the metadata and content of the resulting volumes. Returns the
+    // two created volumes.
+    async fn split_volume(
+        &self,
+        id: &str,
+        first: CreateVolumeRequest,
+        second: CreateVolumeRequest,
+    ) -> Result<Vec<Volume>, VolumeError>;
 }

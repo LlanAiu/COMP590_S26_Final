@@ -43,3 +43,11 @@ export async function flattenVolume(id: string): Promise<Volume> {
     return invoke("flatten_volume", { id });
 }
 
+export async function mergeVolumes(aId: string, bId: string, req: CreateVolumeRequest): Promise<Volume> {
+    return invoke("merge_volumes", { aId, bId, req });
+}
+
+export async function splitVolume(id: string, first: CreateVolumeRequest, second: CreateVolumeRequest): Promise<Volume[]> {
+    return invoke("split_volume", { id, first, second });
+}
+

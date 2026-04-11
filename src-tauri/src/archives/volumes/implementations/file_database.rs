@@ -323,6 +323,208 @@ impl VolumeDatabase for FileDatabase {
         .map_err(|e| VolumeError::Other(format!("JoinError: {}", e)))?
     }
 
+    async fn merge_volumes(
+        &self,
+        a_id: &str,
+        b_id: &str,
+        req: CreateVolumeRequest,
+    ) -> Result<Volume, VolumeError> {
+        let base = self.base.clone();
+        let a_id = a_id.to_string();
+        let b_id = b_id.to_string();
+        spawn_blocking(move || -> Result<Volume, VolumeError> {
+            let db = FileDatabase { base: base.clone() };
+
+            let a_dir = db
+                .find_directory_for_id_recursive(&a_id)
+                .ok_or(VolumeError::NotFound)?;
+            let b_dir = db
+                .find_directory_for_id_recursive(&b_id)
+                .ok_or(VolumeError::NotFound)?;
+
+            // create temp dir for the new merged volume
+            fs::create_dir_all(&base)?;
+            let id = Uuid::new_v4().to_string();
+            let slug = FileDatabase::sanitize_slug(&req.title);
+            let dir_name = if slug.is_empty() {
+                id.clone()
+            } else {
+                format!("{}-{}", id, slug)
+            };
+            let temp_dir = base.join(format!("{}.tmp", &id));
+            let final_dir = base.join(&dir_name);
+
+            fs::create_dir_all(&temp_dir)?;
+            fs::create_dir_all(temp_dir.join(ATTACHMENTS_DIR))?;
+
+            // copy attachments from both sources into new attachments dir
+            let mut attachments = vec![];
+            let dst_attach = temp_dir.join(ATTACHMENTS_DIR);
+            let mut copy_from = |src: &PathBuf, prefix: &str| {
+                let attach_dir = src.join(ATTACHMENTS_DIR);
+                if attach_dir.exists() {
+                    if let Ok(rd) = fs::read_dir(&attach_dir) {
+                        for e in rd.flatten() {
+                            if let Some(name) = e.file_name().to_str() {
+                                let dst_name = format!("{}-{}", prefix, name);
+                                let dst_path = dst_attach.join(&dst_name);
+                                let _ = fs::copy(e.path(), &dst_path)?;
+                                attachments.push(dst_name);
+                            }
+                        }
+                    }
+                }
+                Ok::<(), std::io::Error>(())
+            };
+
+            copy_from(&a_dir, &a_id)?;
+            copy_from(&b_dir, &b_id)?;
+
+            let now = Utc::now().to_rfc3339();
+            let meta = VolumeMeta {
+                id: id.clone(),
+                title: req.title.clone(),
+                description: req.description.clone(),
+                created_at: now.clone(),
+                updated_at: now.clone(),
+                tags: req.tags.clone(),
+                parent: None,
+                version: 1,
+                deleted: false,
+            };
+
+            // write content and meta
+            let content_path = temp_dir.join(CONTENT_FILE);
+            FileDatabase::atomic_write(&content_path, req.content.as_bytes())?;
+
+            let meta_path = temp_dir.join(META_FILE);
+            let meta_json = serde_json::to_vec_pretty(&meta)?;
+            FileDatabase::atomic_write(&meta_path, &meta_json)?;
+
+            fs::rename(&temp_dir, &final_dir)?;
+
+            // move originals to trash
+            let trash_dir = base.join(TRASH_DIR);
+            fs::create_dir_all(&trash_dir)?;
+            let ts = Utc::now().format("%Y%m%d%H%M%S").to_string();
+            if let Some(name) = a_dir.file_name().and_then(|s| s.to_str()) {
+                let dest = trash_dir.join(format!("{}-{}", name, ts));
+                let _ = fs::rename(&a_dir, &dest)?;
+            }
+            if let Some(name) = b_dir.file_name().and_then(|s| s.to_str()) {
+                let dest = trash_dir.join(format!("{}-{}", name, ts));
+                let _ = fs::rename(&b_dir, &dest)?;
+            }
+
+            Ok(Volume {
+                meta,
+                content: req.content,
+                attachments,
+            })
+        })
+        .await
+        .map_err(|e| VolumeError::Other(format!("JoinError: {}", e)))?
+    }
+
+    async fn split_volume(
+        &self,
+        id: &str,
+        first: CreateVolumeRequest,
+        second: CreateVolumeRequest,
+    ) -> Result<Vec<Volume>, VolumeError> {
+        let base = self.base.clone();
+        let id = id.to_string();
+        spawn_blocking(move || -> Result<Vec<Volume>, VolumeError> {
+            let db = FileDatabase { base: base.clone() };
+            let dir = db
+                .find_directory_for_id_recursive(&id)
+                .ok_or(VolumeError::NotFound)?;
+
+            // read attachments from original
+            let mut original_attachments = vec![];
+            let attach_dir = dir.join(ATTACHMENTS_DIR);
+            if attach_dir.exists() {
+                if let Ok(rd) = fs::read_dir(&attach_dir) {
+                    for e in rd.flatten() {
+                        if let Some(name) = e.file_name().to_str() {
+                            original_attachments.push((e.path(), name.to_string()));
+                        }
+                    }
+                }
+            }
+
+            let create_new =
+                |req: CreateVolumeRequest, prefix: &str| -> Result<Volume, VolumeError> {
+                    fs::create_dir_all(&base)?;
+                    let new_id = Uuid::new_v4().to_string();
+                    let slug = FileDatabase::sanitize_slug(&req.title);
+                    let dir_name = if slug.is_empty() {
+                        new_id.clone()
+                    } else {
+                        format!("{}-{}", new_id, slug)
+                    };
+                    let temp_dir = base.join(format!("{}.tmp", &new_id));
+                    let final_dir = base.join(&dir_name);
+
+                    fs::create_dir_all(&temp_dir)?;
+                    fs::create_dir_all(temp_dir.join(ATTACHMENTS_DIR))?;
+
+                    // copy attachments into new attachments dir (prefix to avoid collisions)
+                    let mut attachments = vec![];
+                    for (src_path, name) in &original_attachments {
+                        let dst_name = format!("{}-{}", prefix, name);
+                        let dst_path = temp_dir.join(ATTACHMENTS_DIR).join(&dst_name);
+                        let _ = fs::copy(src_path, &dst_path)?;
+                        attachments.push(dst_name);
+                    }
+
+                    let now = Utc::now().to_rfc3339();
+                    let meta = VolumeMeta {
+                        id: new_id.clone(),
+                        title: req.title.clone(),
+                        description: req.description.clone(),
+                        created_at: now.clone(),
+                        updated_at: now.clone(),
+                        tags: req.tags.clone(),
+                        parent: None,
+                        version: 1,
+                        deleted: false,
+                    };
+
+                    let content_path = temp_dir.join(CONTENT_FILE);
+                    FileDatabase::atomic_write(&content_path, req.content.as_bytes())?;
+
+                    let meta_path = temp_dir.join(META_FILE);
+                    let meta_json = serde_json::to_vec_pretty(&meta)?;
+                    FileDatabase::atomic_write(&meta_path, &meta_json)?;
+
+                    fs::rename(&temp_dir, &final_dir)?;
+
+                    Ok(Volume {
+                        meta,
+                        content: req.content,
+                        attachments,
+                    })
+                };
+
+            let v1 = create_new(first, &format!("{}-a", id))?;
+            let v2 = create_new(second, &format!("{}-b", id))?;
+
+            // move original to trash
+            let trash_dir = base.join(TRASH_DIR);
+            fs::create_dir_all(&trash_dir)?;
+            let ts = Utc::now().format("%Y%m%d%H%M%S").to_string();
+            if let Some(name) = dir.file_name().and_then(|s| s.to_str()) {
+                let dest = trash_dir.join(format!("{}-{}", name, ts));
+                let _ = fs::rename(&dir, &dest)?;
+            }
+
+            Ok(vec![v1, v2])
+        })
+        .await
+        .map_err(|e| VolumeError::Other(format!("JoinError: {}", e)))?
+    }
+
     async fn flatten_volume(&self, id: &str) -> Result<Volume, VolumeError> {
         let base = self.base.clone();
         let id = id.to_string();
