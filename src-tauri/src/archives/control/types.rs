@@ -48,3 +48,9 @@ impl From<String> for ControlError {
         ControlError::ActionError(s)
     }
 }
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ControlLogEntry {
+    pub timestamp: String,
+    pub description: String,
+}

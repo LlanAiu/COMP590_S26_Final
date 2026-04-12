@@ -51,3 +51,13 @@ export async function splitVolume(id: string, first: CreateVolumeRequest, second
     return invoke("split_volume", { id, first, second });
 }
 
+export type ControlLogEntry = { timestamp: string; description: string };
+
+export async function getControlLog(): Promise<ControlLogEntry[]> {
+    return invoke("get_control_log");
+}
+
+export async function clearControlLog(): Promise<void> {
+    return invoke("clear_control_log");
+}
+

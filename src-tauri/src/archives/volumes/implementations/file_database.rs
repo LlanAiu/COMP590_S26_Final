@@ -77,7 +77,7 @@ impl FileDatabase {
         None
     }
 
-    fn atomic_write(path: &Path, data: &[u8]) -> std::io::Result<()> {
+    pub fn atomic_write(path: &Path, data: &[u8]) -> std::io::Result<()> {
         let tmp = path.with_extension("tmp");
         if let Some(parent) = tmp.parent() {
             fs::create_dir_all(parent)?;

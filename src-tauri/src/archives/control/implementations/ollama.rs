@@ -1,6 +1,8 @@
 use std::sync::Arc;
 use std::path::PathBuf;
 
+use chrono::Utc;
+
 use crossbeam_channel::bounded;
 use ollama_rs::generation::completion::request::GenerationRequest;
 use ollama_rs::Ollama;
@@ -69,29 +71,60 @@ Return a JSON array of action objects."#,
     /// human-readable results per action (created volume ids or updated ids).
     pub fn apply_actions(&self, db: Arc<FileDatabase>, actions: Vec<ControlAction>) -> Result<Vec<String>, ControlError> {
         let mut results: Vec<String> = vec![];
-
+        let mut log_entries: Vec<crate::archives::control::types::ControlLogEntry> = vec![];
         for action in actions.into_iter() {
             match action {
                 ControlAction::Create { req } => {
                     let created = tauri::async_runtime::block_on(db.create_volume(req)).map_err(|e| ControlError::ActionError(e.to_string()))?;
-                    results.push(format!("created:{}", created.meta.id));
+                    let desc = format!("created:{}", created.meta.id);
+                    results.push(desc.clone());
+                    log_entries.push(crate::archives::control::types::ControlLogEntry { timestamp: Utc::now().to_rfc3339(), description: desc });
                 }
                 ControlAction::Nest { parent_id, child_id } => {
                     let updated = tauri::async_runtime::block_on(db.nest_volume(&parent_id, &child_id)).map_err(|e| ControlError::ActionError(e.to_string()))?;
-                    results.push(format!("nested:{}->{}", parent_id, updated.meta.id));
+                    let desc = format!("nested:{}->{}", parent_id, updated.meta.id);
+                    results.push(desc.clone());
+                    log_entries.push(crate::archives::control::types::ControlLogEntry { timestamp: Utc::now().to_rfc3339(), description: desc });
                 }
                 ControlAction::Flatten { id } => {
                     let updated = tauri::async_runtime::block_on(db.flatten_volume(&id)).map_err(|e| ControlError::ActionError(e.to_string()))?;
-                    results.push(format!("flattened:{}", updated.meta.id));
+                    let desc = format!("flattened:{}", updated.meta.id);
+                    results.push(desc.clone());
+                    log_entries.push(crate::archives::control::types::ControlLogEntry { timestamp: Utc::now().to_rfc3339(), description: desc });
                 }
                 ControlAction::Merge { a_id, b_id, req } => {
                     let created = tauri::async_runtime::block_on(db.merge_volumes(&a_id, &b_id, req)).map_err(|e| ControlError::ActionError(e.to_string()))?;
-                    results.push(format!("merged:{}+{}->{}", a_id, b_id, created.meta.id));
+                    let desc = format!("merged:{}+{}->{}", a_id, b_id, created.meta.id);
+                    results.push(desc.clone());
+                    log_entries.push(crate::archives::control::types::ControlLogEntry { timestamp: Utc::now().to_rfc3339(), description: desc });
                 }
                 ControlAction::Split { id, first, second } => {
                     let created = tauri::async_runtime::block_on(db.split_volume(&id, first, second)).map_err(|e| ControlError::ActionError(e.to_string()))?;
                     let ids = created.into_iter().map(|v| v.meta.id).collect::<Vec<_>>().join(",");
-                    results.push(format!("split:{}->{}", id, ids));
+                    let desc = format!("split:{}->{}", id, ids);
+                    results.push(desc.clone());
+                    log_entries.push(crate::archives::control::types::ControlLogEntry { timestamp: Utc::now().to_rfc3339(), description: desc });
+                }
+            }
+        }
+
+        // persist log entries next to the volumes base (auto-archives/control_log.json)
+        if !log_entries.is_empty() {
+            if let Some(base) = db.base.parent() {
+                let root = base.to_path_buf();
+                let log_path = root.join("control_log.json");
+                // read existing
+                let mut existing: Vec<crate::archives::control::types::ControlLogEntry> = if log_path.exists() {
+                    match std::fs::read_to_string(&log_path) {
+                        Ok(s) => serde_json::from_str(&s).unwrap_or_else(|_| vec![]),
+                        Err(_) => vec![],
+                    }
+                } else {
+                    vec![]
+                };
+                existing.extend(log_entries.into_iter());
+                if let Ok(serialized) = serde_json::to_vec_pretty(&existing) {
+                    let _ = FileDatabase::atomic_write(&log_path, &serialized);
                 }
             }
         }

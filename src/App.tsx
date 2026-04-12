@@ -6,6 +6,7 @@ import { useState, useEffect } from "react";
 // internal
 import Recording from "./components/audio/recording";
 import AllVolumes from "./components/volumes/all-volumes";
+import ControlNotifications from "./components/control/notifications";
 import VolumeDetail from "./components/volumes/volume-detail";
 import VolumeEditor from "./components/volumes/volume-editor";
 import "./App.css";
@@ -58,6 +59,7 @@ export default function App() {
                         <button type="button" onClick={handleCreateNew}>Create Volume</button>
                     </div>
                     <AllVolumes onOpen={handleOpen} />
+                    <ControlNotifications />
 
                     {mode === "view" && openVolumeId ? (
                         <div className="sidebar-section">

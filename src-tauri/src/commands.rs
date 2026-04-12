@@ -128,7 +128,12 @@ pub async fn nest_volume(
 }
 
 #[tauri::command]
-pub async fn merge_volumes(app: AppHandle, a_id: String, b_id: String, req: CreateVolumeRequest) -> Result<Volume, String> {
+pub async fn merge_volumes(
+    app: AppHandle,
+    a_id: String,
+    b_id: String,
+    req: CreateVolumeRequest,
+) -> Result<Volume, String> {
     println!("merge_volumes called a={} b={}", a_id, b_id);
     let state = app.state::<ArchiveRef>().clone();
     let db = {
@@ -145,7 +150,12 @@ pub async fn merge_volumes(app: AppHandle, a_id: String, b_id: String, req: Crea
 }
 
 #[tauri::command]
-pub async fn split_volume(app: AppHandle, id: String, first: CreateVolumeRequest, second: CreateVolumeRequest) -> Result<Vec<Volume>, String> {
+pub async fn split_volume(
+    app: AppHandle,
+    id: String,
+    first: CreateVolumeRequest,
+    second: CreateVolumeRequest,
+) -> Result<Vec<Volume>, String> {
     println!("split_volume called id={}", id);
     let state = app.state::<ArchiveRef>().clone();
     let db = {
@@ -159,6 +169,56 @@ pub async fn split_volume(app: AppHandle, id: String, first: CreateVolumeRequest
         Err(e) => eprintln!("split_volume error id={} err={}", id, e),
     }
     res.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_control_log(
+    app: AppHandle,
+) -> Result<Vec<crate::archives::control::types::ControlLogEntry>, String> {
+    let state = app.state::<ArchiveRef>().clone();
+    let db = {
+        let guard = state.lock().unwrap();
+        guard.get_volume_database()
+    };
+
+    let base = db.base.clone();
+    if let Some(root) = base.parent() {
+        let log_path = root.join("control_log.json");
+        if log_path.exists() {
+            match std::fs::read_to_string(&log_path) {
+                Ok(s) => match serde_json::from_str::<
+                    Vec<crate::archives::control::types::ControlLogEntry>,
+                >(&s)
+                {
+                    Ok(v) => return Ok(v),
+                    Err(e) => return Err(e.to_string()),
+                },
+                Err(e) => return Err(e.to_string()),
+            }
+        }
+    }
+    Ok(vec![])
+}
+
+#[tauri::command]
+pub async fn clear_control_log(app: AppHandle) -> Result<(), String> {
+    let state = app.state::<ArchiveRef>().clone();
+    let db = {
+        let guard = state.lock().unwrap();
+        guard.get_volume_database()
+    };
+
+    let base = db.base.clone();
+    if let Some(root) = base.parent() {
+        let log_path = root.join("control_log.json");
+        if log_path.exists() {
+            match std::fs::write(&log_path, "[]") {
+                Ok(_) => return Ok(()),
+                Err(e) => return Err(e.to_string()),
+            }
+        }
+    }
+    Ok(())
 }
 
 #[tauri::command]

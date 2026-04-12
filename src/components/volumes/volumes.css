@@ -1,8 +1,8 @@
 .volumes {
     padding: 12px;
-    border: 1px solid #ddd;
-    border-radius: 6px;
-    background: #fff;
+    border-radius: 10px;
+    background: var(--card);
+    border: 1px solid var(--glass-border);
 }
 
 .volumes h3 {
@@ -17,22 +17,33 @@
 
 .volume-item {
     margin-top: 8px;
+    padding: 10px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.02);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    transition: background 160ms ease, transform 120ms ease;
+}
+
+.volume-item:hover {
+    background: rgba(255, 255, 255, 0.035);
+    transform: translateY(-2px);
 }
 
 .volume-item .volume-meta {
     font-size: 12px;
-    color: #666;
+    color: var(--muted);
 }
 
 .volume-item .volume-actions {
-    margin-top: 4px;
+    margin-left: 8px;
 }
 
 .volume-detail-body {
-    background: #fff;
+    background: transparent;
     padding: 12px;
-    border: 1px solid #eee;
-    border-radius: 6px;
+    border-radius: 8px;
 }
 
 .volume-editor .input,
@@ -40,6 +51,11 @@
     width: 100%;
     box-sizing: border-box;
     margin-top: 8px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    color: var(--text);
+    padding: 8px;
+    border-radius: 8px;
 }
 
 .volume-editor .textarea {
