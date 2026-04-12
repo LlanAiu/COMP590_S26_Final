@@ -7,6 +7,7 @@ import { useState, useEffect } from "react";
 import Recording from "./components/audio/recording";
 import AllVolumes from "./components/volumes/all-volumes";
 import ControlNotifications from "./components/control/notifications";
+import KeypointsPanel from "./components/control/keypoints";
 import VolumeDetail from "./components/volumes/volume-detail";
 import VolumeEditor from "./components/volumes/volume-editor";
 import "./App.css";
@@ -103,7 +104,11 @@ export default function App() {
                 </main>
 
                 <aside className="app-right">
-                    <ControlNotifications />
+                    {mode === "view" && openVolumeId ? (
+                        <KeypointsPanel volumeId={openVolumeId} />
+                    ) : (
+                        <ControlNotifications title="Since last time..." />
+                    )}
                 </aside>
             </div>
         </div>

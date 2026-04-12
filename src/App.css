@@ -165,8 +165,8 @@ ul {
     list-style: none;
     padding: 0;
     margin: 8px 0 0 0;
-    max-height: 160px;
     overflow: auto;
+    flex: 1 1 auto;
 }
 
 .control-log-list li {

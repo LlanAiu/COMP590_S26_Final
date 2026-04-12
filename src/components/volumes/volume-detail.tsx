@@ -42,8 +42,10 @@ export default function VolumeDetail({ id }: { id: string }) {
 
     return (
         <div>
-            <div><strong>{volume.meta.title}</strong> ({volume.meta.id})</div>
-            <div className="volume-meta">{volume.meta.updated_at}</div>
+            <div className="volume-header">
+                <div className="volume-title">{volume.meta.title}</div>
+                <div className="volume-detail-meta">{new Date(volume.meta.updated_at).toLocaleString()}</div>
+            </div>
             <div className="volume-detail-body">
                 <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize, rehypeHighlight]}>
                     {volume.content}
