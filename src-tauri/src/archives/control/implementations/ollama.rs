@@ -4,6 +4,7 @@ use chrono::Utc;
 
 use ollama_rs::generation::completion::request::GenerationRequest;
 use ollama_rs::Ollama;
+use serde_json::Value;
 
 use crate::archives::control::constants::OLLAMA_MODEL;
 use crate::archives::control::types::{ControlAction, ControlError};
@@ -47,16 +48,22 @@ impl OllamaController {
 - Create: {{"type":"create","req":{{"title":"...","content":"...","description":"...","tags":[...]}}}}
 - Nest:   {{"type":"nest","parent_id":"<existing id>","child_id":"<existing id>"}}
 - Flatten:{{"type":"flatten","id":"<existing id>"}}
-- Merge:  {{"type":"merge","a_id":"<existing id>","b_id":"<existing id>","req":{{...}}}}
-- Split:  {{"type":"split","id":"<existing id>","first":{{...}},"second":{{...}}}}
+- Merge:  {{"type":"merge","a_id":"<existing id>","b_id":"<existing id>","req":{{"title":"...","content":"...",...}}}}
+- Split:  {{"type":"split","id":"<existing id>","first":{{"title":"...","content":"...",...}},"second":{{...}}}}
 
-Only reference existing volumes by id. When creating or merging/splitting, the `req` objects fully determine the new volume metadata and content. The model should return valid JSON only (no surrounding markdown fences). Use the following inputs:
+Important constraints:
+- Only perform Create/Merge/Split actions when there is clear organizational agreement (for example, at least two notes share the same category/title or the summary explicitly instructs creating/merging). Do not create volumes for every single note.
+- Every `req` object used for creating a new volume MUST include `title` and `content`. If you cannot produce a concise `title`, return a suggestion object (do not perform the create). The system may automatically derive a title from `content` only when the title is explicitly missing but content is present; prefer concise titles (<=8 words).
+- Always reference existing volumes by exact `id` when using `nest`, `flatten`, `merge`, or `split`.
+- Return strictly valid JSON (no markdown fences, no surrounding commentary). If you cannot determine safe actions, return an empty JSON array `[]`.
+
+Use the following inputs:
 
 notes: {notes}
 existing_volumes:
 {vols}
 
-Return a JSON array of action objects."#,
+Return a JSON array of action objects. If no actions are appropriate, please return an empty array"#,
             notes = notes_json,
             vols = vols
         );
@@ -69,10 +76,102 @@ Return a JSON array of action objects."#,
             .map_err(|e| ControlError::OllamaError(e.to_string()))?;
         let response = res.response;
 
-        // try to parse the response as JSON array of ControlAction
-        let actions: Vec<ControlAction> =
-            serde_json::from_str(&response).map_err(|e| ControlError::ParseError(e.to_string()))?;
-        Ok(actions)
+        // Log the raw response for debugging
+        println!("[CONTROL][OLLAMA] raw response:\n{}", response);
+
+        // Try to sanitize common assistant formatting (remove ``` fences or surrounding text)
+        let mut processed = response.trim().to_string();
+        if processed.starts_with("```") {
+            if let Some(pos) = processed.find('\n') {
+                processed = processed[pos + 1..].to_string();
+            }
+            if processed.ends_with("```") {
+                if let Some(pos) = processed.rfind("```") {
+                    processed = processed[..pos].to_string();
+                }
+            }
+            processed = processed.trim().to_string();
+        }
+
+        // If response contains a JSON array somewhere, extract the first `[...]` span
+        if let (Some(start), Some(end)) = (processed.find('['), processed.rfind(']')) {
+            if start < end {
+                let candidate = &processed[start..=end];
+                println!("[CONTROL][OLLAMA] extracted JSON candidate:\n{}", candidate);
+                match serde_json::from_str::<Vec<ControlAction>>(candidate) {
+                    Ok(actions) => return Ok(actions),
+                    Err(err) => {
+                        eprintln!(
+                            "[CONTROL][PARSER] failed to parse extracted candidate: {:?}",
+                            err
+                        );
+                        // fallthrough to try parsing the original/sanitized string below
+                    }
+                }
+            }
+        }
+
+        // try to parse the processed text (after fence trimming)
+        match serde_json::from_str::<Vec<ControlAction>>(&processed) {
+            Ok(actions) => Ok(actions),
+            Err(err) => {
+                eprintln!("[CONTROL][PARSER] parse error: {:?}", err);
+                eprintln!("[CONTROL][PARSER] sanitized response was:\n{}", processed);
+                // Fallback: attempt to parse as generic JSON and fix missing titles where safe.
+                match serde_json::from_str::<Value>(&processed) {
+                    Ok(Value::Array(mut arr)) => {
+                        let mut modified = false;
+                        for item in arr.iter_mut() {
+                            if let Some(obj) = item.as_object_mut() {
+                                if let Some(req) = obj.get_mut("req") {
+                                    if let Some(req_obj) = req.as_object_mut() {
+                                        let has_title = req_obj.get("title").is_some();
+                                        let has_content = req_obj
+                                            .get("content")
+                                            .and_then(|v| v.as_str())
+                                            .is_some();
+                                        if !has_title && has_content {
+                                            if let Some(content) =
+                                                req_obj.get("content").and_then(|v| v.as_str())
+                                            {
+                                                // derive a short title (first up to 8 words)
+                                                let title = content
+                                                    .split_whitespace()
+                                                    .take(8)
+                                                    .collect::<Vec<_>>()
+                                                    .join(" ");
+                                                req_obj.insert(
+                                                    "title".to_string(),
+                                                    Value::String(title),
+                                                );
+                                                modified = true;
+                                                println!("[CONTROL][PARSER] injected derived title for action: {}", req_obj.get("title").unwrap());
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        if modified {
+                            if let Ok(fixed_str) = serde_json::to_string(&arr) {
+                                match serde_json::from_str::<Vec<ControlAction>>(&fixed_str) {
+                                    Ok(actions) => return Ok(actions),
+                                    Err(err2) => eprintln!(
+                                        "[CONTROL][PARSER] still failed after fixes: {:?}",
+                                        err2
+                                    ),
+                                }
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+
+                // return parse error with original error message
+                Err(ControlError::ParseError(err.to_string()))
+            }
+        }
     }
 
     /// Apply actions against the provided FileDatabase. Returns a vector of
@@ -87,6 +186,7 @@ Return a JSON array of action objects."#,
         for action in actions.into_iter() {
             match action {
                 ControlAction::Create { req } => {
+                    println!("[CONTROL][APPLY] creating volume: {}", req.title);
                     let created = tauri::async_runtime::block_on(db.create_volume(req))
                         .map_err(|e| ControlError::ActionError(e.to_string()))?;
                     let desc = format!("created:{}", created.meta.id);
@@ -100,6 +200,10 @@ Return a JSON array of action objects."#,
                     parent_id,
                     child_id,
                 } => {
+                    println!(
+                        "[CONTROL][APPLY] nesting child {} into parent {}",
+                        child_id, parent_id
+                    );
                     let updated =
                         tauri::async_runtime::block_on(db.nest_volume(&parent_id, &child_id))
                             .map_err(|e| ControlError::ActionError(e.to_string()))?;
@@ -111,6 +215,7 @@ Return a JSON array of action objects."#,
                     });
                 }
                 ControlAction::Flatten { id } => {
+                    println!("[CONTROL][APPLY] flattening {}", id);
                     let updated = tauri::async_runtime::block_on(db.flatten_volume(&id))
                         .map_err(|e| ControlError::ActionError(e.to_string()))?;
                     let desc = format!("flattened:{}", updated.meta.id);
@@ -121,6 +226,10 @@ Return a JSON array of action objects."#,
                     });
                 }
                 ControlAction::Merge { a_id, b_id, req } => {
+                    println!(
+                        "[CONTROL][APPLY] merging {} + {} -> new '{}'",
+                        a_id, b_id, req.title
+                    );
                     let created =
                         tauri::async_runtime::block_on(db.merge_volumes(&a_id, &b_id, req))
                             .map_err(|e| ControlError::ActionError(e.to_string()))?;
@@ -132,6 +241,10 @@ Return a JSON array of action objects."#,
                     });
                 }
                 ControlAction::Split { id, first, second } => {
+                    println!(
+                        "[CONTROL][APPLY] splitting {} into '{}' and '{}'",
+                        id, first.title, second.title
+                    );
                     let created =
                         tauri::async_runtime::block_on(db.split_volume(&id, first, second))
                             .map_err(|e| ControlError::ActionError(e.to_string()))?;

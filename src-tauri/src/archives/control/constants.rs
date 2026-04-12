@@ -4,4 +4,4 @@
 
 // internal
 
-pub const OLLAMA_MODEL: &'static str = "gemma4:e2b";
+pub const OLLAMA_MODEL: &'static str = "gemma3:1b";
