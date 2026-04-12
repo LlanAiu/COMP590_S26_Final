@@ -1,6 +1,5 @@
 // builtin
 use crate::archives::volumes::{types::UpdateVolumeRequest, VolumeDatabase};
-use futures::executor::block_on;
 use std::{
     path::PathBuf,
     sync::{Arc, Mutex},
@@ -12,8 +11,8 @@ use std::{
 // internal
 use crate::{
     archives::{
-        summarization::{implementations::ollama::OllamaSummarizer, summary::Summary, Summarizer},
         control::subsystems::OllamaController,
+        summarization::{implementations::ollama::OllamaSummarizer, summary::Summary, Summarizer},
         transcription::{implementations::parakeet::ParakeetTranscriber, AudioTranscriber},
         volumes::implementations::file_database::FileDatabase,
     },
@@ -32,7 +31,7 @@ pub struct Archives {
     summaries: Arc<Mutex<Vec<Summary>>>,
     summary_thread: Option<JoinHandle<()>>,
     volume_database: Arc<FileDatabase>,
-        control: Arc<OllamaController>,
+    control: Arc<OllamaController>,
 }
 
 impl Archives {
@@ -58,27 +57,45 @@ impl Archives {
         });
     }
 
-    pub fn run_control_on_summary(&self, summary: Summary) -> Result<Vec<String>, ApplicationError> {
+    pub fn run_control_on_summary(
+        &self,
+        summary: Summary,
+    ) -> Result<Vec<String>, ApplicationError> {
         // gather index snapshot
         let db_handle = Arc::clone(&self.volume_database);
         let index_res = tauri::async_runtime::block_on(db_handle.list_index());
         let index = match index_res {
             Ok(i) => i,
-            Err(e) => return Err(ApplicationError::InternalError(format!("failed to list volumes: {}", e.to_string()))),
+            Err(e) => {
+                return Err(ApplicationError::InternalError(format!(
+                    "failed to list volumes: {}",
+                    e.to_string()
+                )))
+            }
         };
 
         // interpret via controller
         let actions_res = tauri::async_runtime::block_on(self.control.interpret(&summary, &index));
         let actions = match actions_res {
             Ok(a) => a,
-            Err(e) => return Err(ApplicationError::InternalError(format!("control interpret failed: {:?}", e))),
+            Err(e) => {
+                return Err(ApplicationError::InternalError(format!(
+                    "control interpret failed: {:?}",
+                    e
+                )))
+            }
         };
 
         // apply
-        let apply_res = self.control.apply_actions(Arc::clone(&self.volume_database), actions);
+        let apply_res = self
+            .control
+            .apply_actions(Arc::clone(&self.volume_database), actions);
         match apply_res {
             Ok(r) => Ok(r),
-            Err(e) => Err(ApplicationError::InternalError(format!("control apply failed: {:?}", e))),
+            Err(e) => Err(ApplicationError::InternalError(format!(
+                "control apply failed: {:?}",
+                e
+            ))),
         }
     }
 
@@ -136,19 +153,20 @@ impl Archives {
 
         let summaries_snapshot = guard.clone();
         let db_handle = Arc::clone(&self.volume_database);
+        let controller_handle = Arc::clone(&self.control);
 
         println!("GOT summaries: {:?}", summaries_snapshot);
 
         thread::spawn(move || {
             for summary in summaries_snapshot.into_iter() {
-                for note in summary.notes.into_iter() {
+                for note in summary.notes.clone().into_iter() {
                     let category = note.category.trim().to_string();
                     if category.is_empty() {
                         println!("Ignoring note with empty category: {}", note.content);
                         continue;
                     }
 
-                    let index_res = block_on(db_handle.list_index());
+                    let index_res = tauri::async_runtime::block_on(db_handle.list_index());
                     let index = match index_res {
                         Ok(i) => i,
                         Err(e) => {
@@ -159,7 +177,7 @@ impl Archives {
 
                     let matched = index.into_iter().find(|entry| entry.title == category);
                     if let Some(entry) = matched {
-                        match block_on(db_handle.read_volume(&entry.id)) {
+                        match tauri::async_runtime::block_on(db_handle.read_volume(&entry.id)) {
                             Ok(vol) => {
                                 let mut new_content = vol.content.clone();
                                 if !new_content.ends_with('\n') {
@@ -176,7 +194,9 @@ impl Archives {
                                     version: Some(vol.meta.version),
                                 };
 
-                                match block_on(db_handle.edit_volume(&entry.id, update)) {
+                                match tauri::async_runtime::block_on(
+                                    db_handle.edit_volume(&entry.id, update),
+                                ) {
                                     Ok(updated) => {
                                         println!(
                                             "Appended note to volume '{}'(id={})",
@@ -201,6 +221,23 @@ impl Archives {
                             category, note.content
                         );
                     }
+                }
+
+                // After notes for this summary are appended, run the control agent
+                match tauri::async_runtime::block_on(controller_handle.interpret(
+                    &summary,
+                    &match tauri::async_runtime::block_on(db_handle.list_index()) {
+                        Ok(i) => i,
+                        Err(_) => vec![],
+                    },
+                )) {
+                    Ok(actions) => {
+                        match controller_handle.apply_actions(Arc::clone(&db_handle), actions) {
+                            Ok(results) => println!("[CONTROL] applied actions: {:?}", results),
+                            Err(e) => eprintln!("[CONTROL] apply failed: {:?}", e),
+                        }
+                    }
+                    Err(e) => eprintln!("[CONTROL] interpret failed: {:?}", e),
                 }
             }
         });

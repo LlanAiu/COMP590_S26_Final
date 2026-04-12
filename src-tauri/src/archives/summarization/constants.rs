@@ -11,4 +11,4 @@ pub const SUMMARY_CHANNEL_SIZE: usize = 16;
 
 pub const SHUTDOWN_DRAIN_TIMEOUT_MS: u64 = 50;
 
-pub const OLLAMA_MODEL: &'static str = "gemma3:1b";
+pub const OLLAMA_MODEL: &'static str = "gemma4:e2b";
