@@ -146,7 +146,7 @@ impl VolumeDatabase for FileDatabase {
         let id = id.to_string();
         spawn_blocking(move || -> Result<Volume, VolumeError> {
             let db = FileDatabase { base: base.clone() };
-            let dir = match db.find_directory_for_id(&id) {
+            let dir = match db.find_directory_for_id_recursive(&id) {
                 Some(d) => d,
                 None => return Err(VolumeError::NotFound),
             };
@@ -186,7 +186,9 @@ impl VolumeDatabase for FileDatabase {
         let id = id.to_string();
         spawn_blocking(move || -> Result<Volume, VolumeError> {
             let db = FileDatabase { base: base.clone() };
-            let dir = db.find_directory_for_id(&id).ok_or(VolumeError::NotFound)?;
+            let dir = db
+                .find_directory_for_id_recursive(&id)
+                .ok_or(VolumeError::NotFound)?;
 
             let meta_path = dir.join(META_FILE);
             let content_path = dir.join(CONTENT_FILE);
@@ -237,7 +239,9 @@ impl VolumeDatabase for FileDatabase {
         let id = id.to_string();
         spawn_blocking(move || -> Result<(), VolumeError> {
             let db = FileDatabase { base: base.clone() };
-            let dir = db.find_directory_for_id(&id).ok_or(VolumeError::NotFound)?;
+            let dir = db
+                .find_directory_for_id_recursive(&id)
+                .ok_or(VolumeError::NotFound)?;
 
             let trash_dir = base.join(TRASH_DIR);
             fs::create_dir_all(&trash_dir)?;

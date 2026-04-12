@@ -71,9 +71,8 @@ export default function VolumeTree({ list, onRefresh, onOpen, onEdit }: { list: 
         const isOpen = !!expanded[n.id];
         const isSelected = selected === n.id;
         return (
-            <li key={n.id} className={"volume-item" + (isSelected ? ' selected' : '')} style={{ marginLeft: depth * 12, flexDirection: 'column', alignItems: 'stretch' }}
+            <li key={n.id} className={"volume-item" + (isSelected ? ' selected' : '')} style={{ marginLeft: 0, flexDirection: 'column', alignItems: 'stretch' }}
                 draggable
-                onClick={() => { setSelected(n.id); onOpen?.(n.id); }}
                 onDragStart={(e) => { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", n.id); console.log(`[dragstart] id=${n.id}`); }}
                 onDragEnter={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; console.log(`[dragenter] target=${n.id}`); }}
                 onDragOver={(e) => { allowDrop(e); console.log(`[dragover] target=${n.id}`); }}
@@ -85,7 +84,7 @@ export default function VolumeTree({ list, onRefresh, onOpen, onEdit }: { list: 
                         {n.children.length > 0 ? (
                             <button type="button" className="expand-toggle" onClick={(e) => { e.stopPropagation(); toggleExpand(n.id); }}>{isOpen ? '▾' : '▸'}</button>
                         ) : <span style={{ width: 18 }} />}
-                        <div style={{ cursor: 'pointer' }}>
+                        <div style={{ cursor: 'pointer' }} onClick={(e) => { e.stopPropagation(); setSelected(n.id); onOpen?.(n.id); }}>
                             <strong>{n.title}</strong>
                         </div>
                     </div>
