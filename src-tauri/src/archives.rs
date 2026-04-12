@@ -18,6 +18,7 @@ use crate::{
     },
     error::ApplicationError,
 };
+use chrono::Utc;
 
 // modules
 pub mod control;
@@ -85,7 +86,8 @@ impl Archives {
             }
         }
 
-        let actions_res = tauri::async_runtime::block_on(self.control.interpret(&summary, &index, &volumes_ai));
+        let actions_res =
+            tauri::async_runtime::block_on(self.control.interpret(&summary, &index, &volumes_ai));
         let actions = match actions_res {
             Ok(a) => a,
             Err(e) => {
@@ -165,6 +167,30 @@ impl Archives {
         let db_handle = Arc::clone(&self.volume_database);
         let controller_handle = Arc::clone(&self.control);
 
+        // helper to append a control log entry next to the volumes base
+        fn append_control_log(db: &std::sync::Arc<FileDatabase>, desc: String) {
+            if let Some(base) = db.base.parent() {
+                let root = base.to_path_buf();
+                let log_path = root.join("control_log.json");
+                let mut existing: Vec<crate::archives::control::types::ControlLogEntry> =
+                    if log_path.exists() {
+                        match std::fs::read_to_string(&log_path) {
+                            Ok(s) => serde_json::from_str(&s).unwrap_or_else(|_| vec![]),
+                            Err(_) => vec![],
+                        }
+                    } else {
+                        vec![]
+                    };
+                existing.push(crate::archives::control::types::ControlLogEntry {
+                    timestamp: Utc::now().to_rfc3339(),
+                    description: desc,
+                });
+                if let Ok(serialized) = serde_json::to_vec_pretty(&existing) {
+                    let _ = FileDatabase::atomic_write(&log_path, &serialized);
+                }
+            }
+        }
+
         println!("GOT summaries: {:?}", summaries_snapshot);
 
         thread::spawn(move || {
@@ -213,6 +239,14 @@ impl Archives {
                                             "Appended note to volume '{}'(id={})",
                                             updated.meta.title, updated.meta.id
                                         );
+                                        // log the write in the control log so the frontend can show it
+                                        append_control_log(
+                                            &db_handle,
+                                            format!(
+                                                "Appended note to volume '{}'(id={})",
+                                                updated.meta.title, updated.meta.id
+                                            ),
+                                        );
                                         updated_ids.push(updated.meta.id.clone());
                                     }
                                     Err(e) => {
@@ -243,13 +277,18 @@ impl Archives {
                 };
                 let mut volumes_ai: Vec<(String, String)> = Vec::new();
                 for entry in index_list.iter() {
-                    if let Ok(v) = tauri::async_runtime::block_on(db_handle.read_volume(&entry.id)) {
+                    if let Ok(v) = tauri::async_runtime::block_on(db_handle.read_volume(&entry.id))
+                    {
                         if let Some(s) = v.meta.ai_summary.clone() {
                             volumes_ai.push((entry.id.clone(), s));
                         }
                     }
                 }
-                match tauri::async_runtime::block_on(controller_handle.interpret(&summary, &index_list, &volumes_ai)) {
+                match tauri::async_runtime::block_on(controller_handle.interpret(
+                    &summary,
+                    &index_list,
+                    &volumes_ai,
+                )) {
                     Ok(actions) => {
                         match controller_handle.apply_actions(Arc::clone(&db_handle), actions) {
                             Ok(results) => println!("[CONTROL] applied actions: {:?}", results),
@@ -269,24 +308,40 @@ impl Archives {
                 match tauri::async_runtime::block_on(db_handle.read_volume(&id)) {
                     Ok(vol) => {
                         // extract keypoints and persist
-                        match tauri::async_runtime::block_on(controller_handle.extract_keypoints(&vol.content)) {
+                        match tauri::async_runtime::block_on(
+                            controller_handle.extract_keypoints(&vol.content),
+                        ) {
                             Ok(points) => {
-                                if let Err(e) = tauri::async_runtime::block_on(db_handle.set_keypoints(&id, points)) {
+                                if let Err(e) = tauri::async_runtime::block_on(
+                                    db_handle.set_keypoints(&id, points),
+                                ) {
                                     eprintln!("Failed to persist keypoints for {}: {:?}", id, e);
                                 } else {
                                     println!("Persisted keypoints for volume {}", id);
+                                    append_control_log(
+                                        &db_handle,
+                                        format!("Persisted keypoints for volume {}", id),
+                                    );
                                 }
                             }
                             Err(e) => eprintln!("Keypoint extraction failed for {}: {:?}", id, e),
                         }
 
                         // generate an AI-only summary and persist in volume metadata
-                        match tauri::async_runtime::block_on(controller_handle.generate_ai_summary(&vol.content)) {
+                        match tauri::async_runtime::block_on(
+                            controller_handle.generate_ai_summary(&vol.content),
+                        ) {
                             Ok(ai_sum) => {
-                                if let Err(e) = tauri::async_runtime::block_on(db_handle.set_ai_summary(&id, ai_sum.clone())) {
+                                if let Err(e) = tauri::async_runtime::block_on(
+                                    db_handle.set_ai_summary(&id, ai_sum.clone()),
+                                ) {
                                     eprintln!("Failed to persist AI summary for {}: {:?}", id, e);
                                 } else {
                                     println!("Persisted AI summary for volume {}", id);
+                                    append_control_log(
+                                        &db_handle,
+                                        format!("Persisted AI summary for volume {}", id),
+                                    );
                                 }
                             }
                             Err(e) => eprintln!("AI summary generation failed for {}: {:?}", id, e),
