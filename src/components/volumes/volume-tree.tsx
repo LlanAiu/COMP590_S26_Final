@@ -29,8 +29,16 @@ function buildTree(list: VolumeIndexEntryFull[]): Node[] {
     return roots;
 }
 
-export default function VolumeTree({ list, onRefresh, onOpen }: { list: VolumeIndexEntryFull[]; onRefresh: () => void; onOpen?: (id: string) => void }) {
+import { useState } from "react";
+
+export default function VolumeTree({ list, onRefresh, onOpen, onEdit }: { list: VolumeIndexEntryFull[]; onRefresh: () => void; onOpen?: (id: string) => void; onEdit?: (id: string) => void }) {
     const roots = buildTree(list || []);
+    const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+    const [selected, setSelected] = useState<string | null>(null);
+
+    function toggleExpand(id: string) {
+        setExpanded((s) => ({ ...s, [id]: !s[id] }));
+    }
 
     async function handleDrop(e: React.DragEvent, targetId: string) {
         e.preventDefault();
@@ -60,8 +68,10 @@ export default function VolumeTree({ list, onRefresh, onOpen }: { list: VolumeIn
     }
 
     function renderNode(n: Node, depth = 0) {
+        const isOpen = !!expanded[n.id];
+        const isSelected = selected === n.id;
         return (
-            <li key={n.id} className="volume-item" style={{ marginLeft: depth * 12 }}
+            <li key={n.id} className={"volume-item" + (isSelected ? ' selected' : '')} style={{ marginLeft: depth * 12, flexDirection: 'column', alignItems: 'stretch' }}
                 draggable
                 onDragStart={(e) => { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", n.id); console.log(`[dragstart] id=${n.id}`); }}
                 onDragEnter={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; console.log(`[dragenter] target=${n.id}`); }}
@@ -70,16 +80,21 @@ export default function VolumeTree({ list, onRefresh, onOpen }: { list: VolumeIn
                 onDrop={(e) => handleDrop(e, n.id)}
             >
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <div>
-                        <strong style={{ cursor: "pointer" }} onClick={() => onOpen?.(n.id)}>{n.title}</strong>
-                        <div className="volume-meta">{n.updated_at}</div>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        {n.children.length > 0 ? (
+                            <button type="button" className="expand-toggle" onClick={() => toggleExpand(n.id)}>{isOpen ? '▾' : '▸'}</button>
+                        ) : <span style={{ width: 18 }} />}
+                        <div onClick={() => { setSelected(n.id); onOpen?.(n.id); }} style={{ cursor: 'pointer' }}>
+                            <strong>{n.title}</strong>
+                        </div>
                     </div>
-                    <div className="volume-actions">
-                        <button type="button" onClick={async () => { await commands.flattenVolume(n.id); onRefresh(); }}>Flatten</button>
+                    <div className="volume-actions" style={{ visibility: isSelected ? 'visible' : 'hidden' }}>
+                        <button type="button" onClick={() => { setSelected(n.id); onOpen?.(n.id); }}>Open</button>
                     </div>
                 </div>
-                {n.children.length > 0 ? (
-                    <ul>
+
+                {n.children.length > 0 && isOpen ? (
+                    <ul className="volume-children">
                         {n.children.map((c) => renderNode(c, depth + 1))}
                     </ul>
                 ) : null}
@@ -89,11 +104,22 @@ export default function VolumeTree({ list, onRefresh, onOpen }: { list: VolumeIn
 
     return (
         <div className="volumes">
-            <h3>Volume Tree</h3>
             <ul className="volume-list" onDragOver={allowDrop} onDrop={(e) => { e.preventDefault(); }}>
                 {roots.map((r) => renderNode(r))}
             </ul>
-            <div style={{ marginTop: 8 }}><small>Drag an item onto another to nest it. Use "Flatten" to move to top-level.</small></div>
+            <div style={{ marginTop: 8 }}><small>Drag an item onto another to nest it.</small></div>
+
+            {selected ? (
+                <div className="sidebar-section selected-actions" style={{ marginTop: 12 }}>
+                    <h4>Selected</h4>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                        <button type="button" onClick={() => { setSelected(null); onEdit?.(selected!); }}>Edit</button>
+                        <button type="button" onClick={async () => { try { await commands.flattenVolume(selected); onRefresh(); } catch (err) { console.error(err); } }}>Flatten</button>
+                        <button type="button" onClick={async () => { if (!confirm('Delete this volume?')) return; try { await commands.deleteVolume(selected); setSelected(null); onRefresh(); } catch (err) { console.error(err); } }}>Delete</button>
+                        <button type="button" onClick={() => setSelected(null)} className="btn-close">Close</button>
+                    </div>
+                </div>
+            ) : null}
         </div>
     );
 }

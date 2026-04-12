@@ -41,6 +41,11 @@ export default function App() {
         setMode("view");
     }
 
+    function handleEdit(id: string) {
+        setOpenVolumeId(id);
+        setMode("edit");
+    }
+
     function handleCreateNew() {
         setOpenVolumeId(null);
         setMode("create");
@@ -48,27 +53,22 @@ export default function App() {
 
     return (
         <div>
-            <h1>It's Beautiful</h1>
+            <header className="app-header">
+                <h1>Welcome Back!</h1>
+                <div className="header-controls">
+                    <button type="button" onClick={handleCreateNew} className="primary">Create</button>
+                    <Recording compact />
+                </div>
+            </header>
 
             <div className="app-layout">
-                <div className="app-main">
-                    <Recording />
-                </div>
-                <div className="app-sidebar">
-                    <div style={{ marginBottom: 12 }}>
-                        <button type="button" onClick={handleCreateNew}>Create Volume</button>
-                    </div>
-                    <AllVolumes onOpen={handleOpen} />
-                    <ControlNotifications />
+                <aside className="app-left">
+                    <AllVolumes onOpen={handleOpen} onEdit={handleEdit} />
+                </aside>
 
+                <main className="app-main">
                     {mode === "view" && openVolumeId ? (
-                        <div className="sidebar-section">
-                            <VolumeDetail id={openVolumeId} />
-                            <div className="sidebar-actions">
-                                <button type="button" onClick={() => setMode("edit")}>Edit</button>
-                                <button type="button" onClick={() => { setOpenVolumeId(null); setMode("list"); }} className="btn-close">Close</button>
-                            </div>
-                        </div>
+                        <VolumeDetail id={openVolumeId} />
                     ) : null}
 
                     {mode === "edit" ? (
@@ -82,7 +82,18 @@ export default function App() {
                             <VolumeEditor onSaved={(v) => { setOpenVolumeId(v.meta.id); setMode("view"); }} />
                         </div>
                     ) : null}
-                </div>
+
+                    {mode === "list" ? (
+                        <div className="markdown-placeholder card">
+                            <h3>Welcome</h3>
+                            <p className="muted">Select a volume on the left to view or edit. The right column shows recent agent actions.</p>
+                        </div>
+                    ) : null}
+                </main>
+
+                <aside className="app-right">
+                    <ControlNotifications />
+                </aside>
             </div>
         </div>
     );

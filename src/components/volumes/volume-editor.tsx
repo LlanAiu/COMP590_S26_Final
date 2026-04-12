@@ -48,7 +48,7 @@ export default function VolumeEditor({
         <div className="volume-editor">
             <h3>{volumeId ? "Edit Volume" : "Create Volume"}</h3>
             <input className="input" placeholder="Title" value={title} onChange={(e) => setTitle(e.target.value)} />
-            <textarea className="textarea" placeholder="Content" value={content} onChange={(e) => setContent(e.target.value)} rows={8} />
+            <textarea className="textarea" placeholder="Content" value={content} onChange={(e) => setContent(e.target.value)} rows={16} />
             <input className="input" placeholder="Description" value={description} onChange={(e) => setDescription(e.target.value)} />
             <div className="actions">
                 {!volumeId ? (

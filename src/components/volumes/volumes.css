@@ -3,41 +3,93 @@
     border-radius: 10px;
     background: var(--card);
     border: 1px solid var(--glass-border);
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding-top: 72px;
+    /* leave space for header when sidebar is full-height */
+}
+
+.volumes {
+    padding: 6px;
+    border-radius: 10px;
+    background: var(--card);
+    border: 1px solid var(--glass-border);
+    display: flex;
+    flex-direction: column;
+    height: calc(100% - 8px);
+    box-sizing: border-box;
+    margin: 0;
 }
 
 .volumes h3 {
-    margin-top: 0;
+    text-align: center;
+    margin: 6px 0 8px 0;
 }
 
 .volume-list {
     list-style: none;
     padding: 0;
     margin: 8px 0 0 0;
+    overflow: visible;
+    flex: 1 1 auto;
 }
 
+.volume-list {
+    list-style: none;
+    padding: 0;
+    margin: 4px 0 0 0;
+    overflow: auto;
+    flex: 1 1 auto;
+}
+
+.volume-children {
+    list-style: none;
+    padding: 0;
+    margin: 6px 0 0 12px;
+}
+
+
 .volume-item {
-    margin-top: 8px;
-    padding: 10px;
+    margin-top: 6px;
+    padding: 8px;
     border-radius: 8px;
-    background: rgba(255, 255, 255, 0.02);
+    background: rgba(255, 255, 255, 0.015);
     display: flex;
     align-items: center;
     justify-content: space-between;
-    transition: background 160ms ease, transform 120ms ease;
+    transition: background 120ms ease, transform 100ms ease;
+    font-size: 14px;
 }
 
 .volume-item:hover {
-    background: rgba(255, 255, 255, 0.035);
-    transform: translateY(-2px);
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.volume-item.selected {
+    border: 1px solid rgba(96, 165, 250, 0.12);
+    background: linear-gradient(90deg, rgba(96, 165, 250, 0.03), rgba(110, 231, 183, 0.02));
 }
 
 .volume-item .volume-meta {
-    font-size: 12px;
-    color: var(--muted);
+    display: none;
 }
 
 .volume-item .volume-actions {
     margin-left: 8px;
+}
+
+.expand-toggle {
+    background: transparent;
+    border: none;
+    color: var(--text);
+    cursor: pointer;
+    font-size: 12px;
+    width: 18px;
+    height: 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .volume-detail-body {
@@ -54,14 +106,19 @@
     background: rgba(255, 255, 255, 0.02);
     border: 1px solid rgba(255, 255, 255, 0.04);
     color: var(--text);
-    padding: 8px;
+    padding: 12px;
     border-radius: 8px;
 }
 
 .volume-editor .textarea {
-    height: 160px;
+    height: 360px;
 }
 
 .volume-editor .actions {
     margin-top: 8px;
+}
+
+.volume-editor {
+    width: 100%;
+    max-width: none;
 }

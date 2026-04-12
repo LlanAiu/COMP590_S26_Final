@@ -38,8 +38,57 @@
     min-height: calc(100vh - 48px);
 }
 
-.app-sidebar {
-    width: 380px;
+.app-left {
+    width: 300px;
+    position: fixed;
+    left: 10px;
+    top: 12px;
+    bottom: 10px;
+    overflow: hidden;
+    padding: 8px;
+}
+
+.app-right {
+    width: 260px;
+    position: fixed;
+    right: 20px;
+    top: 12px;
+    bottom: 10px;
+    overflow: hidden;
+    padding: 8px;
+}
+
+.app-main {
+    margin-left: 340px;
+    margin-right: 300px;
+}
+
+.app-header {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 20px;
+    z-index: 40;
+    background: transparent;
+}
+
+.app-header h1 {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    margin: 0;
+}
+
+.header-controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-left: auto;
+}
+
+.markdown-placeholder {
+    padding: 20px;
 }
 
 .spacing-top {
