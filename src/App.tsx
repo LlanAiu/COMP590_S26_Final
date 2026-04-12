@@ -36,6 +36,18 @@ export default function App() {
         };
     }, []);
 
+    // Deselect/open list on Escape
+    useEffect(() => {
+        function onKey(e: KeyboardEvent) {
+            if (e.key === "Escape") {
+                setOpenVolumeId(null);
+                setMode("list");
+            }
+        }
+        window.addEventListener("keydown", onKey);
+        return () => window.removeEventListener("keydown", onKey);
+    }, []);
+
     function handleOpen(id: string) {
         setOpenVolumeId(id);
         setMode("view");
@@ -54,7 +66,6 @@ export default function App() {
     return (
         <div>
             <header className="app-header">
-                <h1>Welcome Back!</h1>
                 <div className="header-controls">
                     <button type="button" onClick={handleCreateNew} className="primary">Create</button>
                     <Recording compact />

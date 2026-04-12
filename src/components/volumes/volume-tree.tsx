@@ -73,6 +73,7 @@ export default function VolumeTree({ list, onRefresh, onOpen, onEdit }: { list: 
         return (
             <li key={n.id} className={"volume-item" + (isSelected ? ' selected' : '')} style={{ marginLeft: depth * 12, flexDirection: 'column', alignItems: 'stretch' }}
                 draggable
+                onClick={() => { setSelected(n.id); onOpen?.(n.id); }}
                 onDragStart={(e) => { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", n.id); console.log(`[dragstart] id=${n.id}`); }}
                 onDragEnter={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; console.log(`[dragenter] target=${n.id}`); }}
                 onDragOver={(e) => { allowDrop(e); console.log(`[dragover] target=${n.id}`); }}
@@ -82,15 +83,13 @@ export default function VolumeTree({ list, onRefresh, onOpen, onEdit }: { list: 
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                         {n.children.length > 0 ? (
-                            <button type="button" className="expand-toggle" onClick={() => toggleExpand(n.id)}>{isOpen ? '▾' : '▸'}</button>
+                            <button type="button" className="expand-toggle" onClick={(e) => { e.stopPropagation(); toggleExpand(n.id); }}>{isOpen ? '▾' : '▸'}</button>
                         ) : <span style={{ width: 18 }} />}
-                        <div onClick={() => { setSelected(n.id); onOpen?.(n.id); }} style={{ cursor: 'pointer' }}>
+                        <div style={{ cursor: 'pointer' }}>
                             <strong>{n.title}</strong>
                         </div>
                     </div>
-                    <div className="volume-actions" style={{ visibility: isSelected ? 'visible' : 'hidden' }}>
-                        <button type="button" onClick={() => { setSelected(n.id); onOpen?.(n.id); }}>Open</button>
-                    </div>
+
                 </div>
 
                 {n.children.length > 0 && isOpen ? (
