@@ -66,13 +66,21 @@ impl OllamaModule {
                                     match tauri::async_runtime::block_on(db.list_index()) {
                                         Ok(list) => {
                                             if !list.is_empty() {
-                                                categories = list
-                                                    .into_iter()
-                                                    .map(|e| match e.description {
-                                                        Some(d) if !d.trim().is_empty() => format!("{} — {}", e.title, d.trim()),
-                                                        _ => e.title,
-                                                    })
-                                                    .collect();
+                                                // Build category strings; append stored AI summary from volume metadata when available.
+                                                for e in list.into_iter() {
+                                                    let mut entry_str = match e.description {
+                                                        Some(d) if !d.trim().is_empty() => format!("{} — {}", e.title.clone(), d.trim()),
+                                                        _ => e.title.clone(),
+                                                    };
+                                                    if let Ok(vol) = tauri::async_runtime::block_on(db.read_volume(&e.id)) {
+                                                        if let Some(ai) = vol.meta.ai_summary {
+                                                            if !ai.trim().is_empty() {
+                                                                entry_str.push_str(&format!(" — AI: {}", ai.trim()));
+                                                            }
+                                                        }
+                                                    }
+                                                    categories.push(entry_str);
+                                                }
                                             }
                                         }
                                         Err(err) => {
@@ -125,13 +133,20 @@ impl OllamaModule {
                                 match tauri::async_runtime::block_on(db.list_index()) {
                                     Ok(list) => {
                                         if !list.is_empty() {
-                                            categories = list
-                                                .into_iter()
-                                                .map(|e| match e.description {
-                                                    Some(d) if !d.trim().is_empty() => format!("{} — {}", e.title, d.trim()),
-                                                    _ => e.title,
-                                                })
-                                                .collect();
+                                            for e in list.into_iter() {
+                                                let mut entry_str = match e.description {
+                                                    Some(d) if !d.trim().is_empty() => format!("{} — {}", e.title.clone(), d.trim()),
+                                                    _ => e.title.clone(),
+                                                };
+                                                if let Ok(vol) = tauri::async_runtime::block_on(db.read_volume(&e.id)) {
+                                                    if let Some(ai) = vol.meta.ai_summary {
+                                                        if !ai.trim().is_empty() {
+                                                            entry_str.push_str(&format!(" — AI: {}", ai.trim()));
+                                                        }
+                                                    }
+                                                }
+                                                categories.push(entry_str);
+                                            }
                                         }
                                     }
                                     Err(err) => {

@@ -16,6 +16,8 @@ pub struct VolumeMeta {
     pub parent: Option<String>,
     #[serde(default)]
     pub keypoints: Option<Vec<String>>,
+    #[serde(default)]
+    pub ai_summary: Option<String>,
     pub version: u64,
     pub deleted: bool,
 }

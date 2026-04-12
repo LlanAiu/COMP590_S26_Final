@@ -32,14 +32,20 @@ impl OllamaController {
         &self,
         summary: &Summary,
         volumes: &[crate::archives::volumes::types::VolumeIndexEntry],
+        volumes_ai: &[(String, String)],
     ) -> Result<Vec<ControlAction>, ControlError> {
         let notes_json = serde_json::to_string(&summary.notes)
             .map_err(|e| ControlError::ParseError(e.to_string()))?;
 
-        // build a compact list of existing volumes (id + title) to help the model
+        // build a compact list of existing volumes (id + title + optional AI summary)
         let mut vols = String::new();
         for v in volumes.iter() {
-            vols.push_str(&format!("- id: {} title: {}\n", v.id, v.title));
+            let mut line = format!("- id: {} title: {}", v.id, v.title);
+            if let Some((_, ai)) = volumes_ai.iter().find(|(vid, _)| vid == &v.id) {
+                line.push_str(&format!(" ai_summary: {}", ai));
+            }
+            line.push('\n');
+            vols.push_str(&line);
         }
 
         let prompt = format!(
@@ -179,7 +185,7 @@ Return a JSON array of action objects. If no actions are appropriate, please ret
     /// JSON array of strings as the model output.
     pub async fn extract_keypoints(&self, text: &str) -> Result<Vec<String>, ControlError> {
         let prompt = format!(
-            r#"Extract up to 8 concise keypoints from the following text. Return the result as a JSON array of short strings (no surrounding commentary). Example: ["point one","point two",...]. Text:
+            r#"Extract up to 8 concise, relevant keypoints from the following text. Return the result as a JSON array of short strings (no surrounding commentary). Each keypoint should be a brief actionable bullet starting with a verb (present tense), e.g. "Start", "Add", "Remove". Only include important, relevant facts — omit side-comments and filler. Example: ["Start X","Add Y",...]. Text:
 
 {}"#,
             text = text
@@ -224,6 +230,41 @@ Return a JSON array of action objects. If no actions are appropriate, please ret
                 Err(ControlError::ParseError(err.to_string()))
             }
         }
+    }
+
+    /// Generate a short AI-only summary for a volume's content. Returns a short
+    /// paragraph (single string). The model should return only the summary text
+    /// with no surrounding fences or commentary.
+    pub async fn generate_ai_summary(&self, text: &str) -> Result<String, ControlError> {
+        let prompt = format!(
+            r#"Produce a concise AI-only summary (1-3 sentences) that captures the essential context, purpose, and important details of the following text. Be focused and relevant; do not repeat small talk, filler, or off-topic commentary. Return only the summary text with no markdown or commentary. Text:
+
+{}"#,
+            text = text
+        );
+
+        let gen_req = GenerationRequest::new(self.model.clone(), prompt);
+        let res = self
+            .ollama
+            .generate(gen_req)
+            .await
+            .map_err(|e| ControlError::OllamaError(e.to_string()))?;
+        let mut response = res.response.trim().to_string();
+
+        // strip fences if present
+        if response.starts_with("```") {
+            if let Some(pos) = response.find('\n') {
+                response = response[pos + 1..].to_string();
+            }
+            if response.ends_with("```") {
+                if let Some(pos) = response.rfind("```") {
+                    response = response[..pos].to_string();
+                }
+            }
+            response = response.trim().to_string();
+        }
+
+        Ok(response)
     }
 
     /// Apply actions against the provided FileDatabase. Returns a vector of

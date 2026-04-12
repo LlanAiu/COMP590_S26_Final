@@ -18,6 +18,7 @@ export type VolumeMeta = {
     tags: string[];
     parent?: string | null;
     keypoints?: string[];
+    ai_summary?: string;
     version: number;
 };
 
