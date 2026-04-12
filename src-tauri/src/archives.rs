@@ -158,6 +158,7 @@ impl Archives {
         println!("GOT summaries: {:?}", summaries_snapshot);
 
         thread::spawn(move || {
+            let mut updated_ids: Vec<String> = Vec::new();
             for summary in summaries_snapshot.into_iter() {
                 for note in summary.notes.clone().into_iter() {
                     let category = note.category.trim().to_string();
@@ -202,6 +203,7 @@ impl Archives {
                                             "Appended note to volume '{}'(id={})",
                                             updated.meta.title, updated.meta.id
                                         );
+                                        updated_ids.push(updated.meta.id.clone());
                                     }
                                     Err(e) => {
                                         eprintln!(
@@ -238,6 +240,29 @@ impl Archives {
                         }
                     }
                     Err(e) => eprintln!("[CONTROL] interpret failed: {:?}", e),
+                }
+            }
+
+            // After processing summaries and running control actions, extract keypoints
+            // for any volumes we modified, and persist them in the volume meta.
+            // Deduplicate ids
+            updated_ids.sort();
+            updated_ids.dedup();
+            for id in updated_ids.into_iter() {
+                match tauri::async_runtime::block_on(db_handle.read_volume(&id)) {
+                    Ok(vol) => {
+                        match tauri::async_runtime::block_on(controller_handle.extract_keypoints(&vol.content)) {
+                            Ok(points) => {
+                                if let Err(e) = tauri::async_runtime::block_on(db_handle.set_keypoints(&id, points)) {
+                                    eprintln!("Failed to persist keypoints for {}: {:?}", id, e);
+                                } else {
+                                    println!("Persisted keypoints for volume {}", id);
+                                }
+                            }
+                            Err(e) => eprintln!("Keypoint extraction failed for {}: {:?}", id, e),
+                        }
+                    }
+                    Err(e) => eprintln!("Failed to read volume {} for keypoints: {}", id, e),
                 }
             }
         });

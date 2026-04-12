@@ -174,6 +174,58 @@ Return a JSON array of action objects. If no actions are appropriate, please ret
         }
     }
 
+    /// Extract short keypoints from the provided text. Returns a vector of
+    /// short strings (keypoints). Uses the same Ollama client and expects a
+    /// JSON array of strings as the model output.
+    pub async fn extract_keypoints(&self, text: &str) -> Result<Vec<String>, ControlError> {
+        let prompt = format!(
+            r#"Extract up to 8 concise keypoints from the following text. Return the result as a JSON array of short strings (no surrounding commentary). Example: ["point one","point two",...]. Text:
+
+{}"#,
+            text = text
+        );
+
+        let gen_req = GenerationRequest::new(self.model.clone(), prompt);
+        let res = self
+            .ollama
+            .generate(gen_req)
+            .await
+            .map_err(|e| ControlError::OllamaError(e.to_string()))?;
+        let response = res.response;
+
+        println!("[CONTROL][OLLAMA] raw keypoints response:\n{}", response);
+
+        let mut processed = response.trim().to_string();
+        if processed.starts_with("```") {
+            if let Some(pos) = processed.find('\n') {
+                processed = processed[pos + 1..].to_string();
+            }
+            if processed.ends_with("```") {
+                if let Some(pos) = processed.rfind("```") {
+                    processed = processed[..pos].to_string();
+                }
+            }
+            processed = processed.trim().to_string();
+        }
+
+        if let (Some(start), Some(end)) = (processed.find('['), processed.rfind(']')) {
+            if start < end {
+                let candidate = &processed[start..=end];
+                if let Ok(points) = serde_json::from_str::<Vec<String>>(candidate) {
+                    return Ok(points);
+                }
+            }
+        }
+
+        match serde_json::from_str::<Vec<String>>(&processed) {
+            Ok(points) => Ok(points),
+            Err(err) => {
+                eprintln!("[CONTROL][PARSER] keypoints parse error: {:?}", err);
+                Err(ControlError::ParseError(err.to_string()))
+            }
+        }
+    }
+
     /// Apply actions against the provided FileDatabase. Returns a vector of
     /// human-readable results per action (created volume ids or updated ids).
     pub fn apply_actions(

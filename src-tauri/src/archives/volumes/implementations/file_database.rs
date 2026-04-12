@@ -117,6 +117,7 @@ impl VolumeDatabase for FileDatabase {
                 updated_at: now.clone(),
                 tags: req.tags.clone(),
                 parent: None,
+                keypoints: None,
                 version: 1,
                 deleted: false,
             };
@@ -389,6 +390,7 @@ impl VolumeDatabase for FileDatabase {
                 updated_at: now.clone(),
                 tags: req.tags.clone(),
                 parent: None,
+                keypoints: None,
                 version: 1,
                 deleted: false,
             };
@@ -487,6 +489,7 @@ impl VolumeDatabase for FileDatabase {
                         updated_at: now.clone(),
                         tags: req.tags.clone(),
                         parent: None,
+                        keypoints: None,
                         version: 1,
                         deleted: false,
                     };
@@ -657,6 +660,57 @@ impl VolumeDatabase for FileDatabase {
                 }
             }
             Ok(out)
+        })
+        .await
+        .map_err(|e| VolumeError::Other(format!("JoinError: {}", e)))?
+    }
+}
+
+impl FileDatabase {
+    pub async fn set_keypoints(
+        &self,
+        id: &str,
+        keypoints: Vec<String>,
+    ) -> Result<Volume, VolumeError> {
+        let base = self.base.clone();
+        let id = id.to_string();
+        spawn_blocking(move || -> Result<Volume, VolumeError> {
+            let db = FileDatabase { base: base.clone() };
+            let dir = db.find_directory_for_id(&id).ok_or(VolumeError::NotFound)?;
+
+            let meta_path = dir.join(META_FILE);
+            let content_path = dir.join(CONTENT_FILE);
+
+            let meta_str = fs::read_to_string(&meta_path)?;
+            let mut meta: VolumeMeta = serde_json::from_str(&meta_str)?;
+
+            meta.keypoints = Some(keypoints);
+            meta.updated_at = Utc::now().to_rfc3339();
+            meta.version = meta.version.saturating_add(1);
+
+            let meta_json = serde_json::to_vec_pretty(&meta)?;
+            FileDatabase::atomic_write(&meta_path, &meta_json)?;
+
+            let content = fs::read_to_string(&content_path)?;
+
+            let mut attachments = vec![];
+            let attach_dir = dir.join(ATTACHMENTS_DIR);
+            if attach_dir.exists() {
+                for entry in fs::read_dir(attach_dir).unwrap_or_else(|_| fs::read_dir(".").unwrap())
+                {
+                    if let Ok(e) = entry {
+                        if let Some(name) = e.file_name().to_str() {
+                            attachments.push(name.to_string());
+                        }
+                    }
+                }
+            }
+
+            Ok(Volume {
+                meta,
+                content,
+                attachments,
+            })
         })
         .await
         .map_err(|e| VolumeError::Other(format!("JoinError: {}", e)))?

@@ -14,6 +14,8 @@ pub struct VolumeMeta {
     pub updated_at: String,
     pub tags: Vec<String>,
     pub parent: Option<String>,
+    #[serde(default)]
+    pub keypoints: Option<Vec<String>>,
     pub version: u64,
     pub deleted: bool,
 }

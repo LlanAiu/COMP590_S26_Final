@@ -106,11 +106,9 @@ export default function VolumeTree({ list, onRefresh, onOpen, onEdit }: { list: 
             <ul className="volume-list" onDragOver={allowDrop} onDrop={(e) => { e.preventDefault(); }}>
                 {roots.map((r) => renderNode(r))}
             </ul>
-            <div style={{ marginTop: 8 }}><small>Drag an item onto another to nest it.</small></div>
 
             {selected ? (
                 <div className="sidebar-section selected-actions" style={{ marginTop: 12 }}>
-                    <h4>Selected</h4>
                     <div style={{ display: 'flex', gap: 8 }}>
                         <button type="button" onClick={() => { setSelected(null); onEdit?.(selected!); }}>Edit</button>
                         <button type="button" onClick={async () => { try { await commands.flattenVolume(selected); onRefresh(); } catch (err) { console.error(err); } }}>Flatten</button>
