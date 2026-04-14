@@ -10,10 +10,13 @@ import ControlNotifications from "./components/control/notifications";
 import KeypointsPanel from "./components/control/keypoints";
 import VolumeDetail from "./components/volumes/volume-detail";
 import VolumeEditor from "./components/volumes/volume-editor";
+import Sidebar from "./components/layout/sidebar";
+import SettingsPage from "./components/settings/settings";
 import "./App.css";
 
 
 export default function App() {
+    const [page, setPage] = useState<"volumes" | "settings">("volumes");
     const [openVolumeId, setOpenVolumeId] = useState<string | null>(null);
     const [mode, setMode] = useState<"list" | "view" | "edit" | "create">("list");
 
@@ -65,51 +68,59 @@ export default function App() {
     }
 
     return (
-        <div>
-            <header className="app-header">
-                <div className="header-controls">
-                    <button type="button" onClick={handleCreateNew} className="primary">Create</button>
-                    <Recording compact />
-                </div>
-            </header>
+        <div style={{ display: "flex" }}>
+            <Sidebar page={page} setPage={setPage} />
+            <div style={{ flex: 1 }}>
+                <header className="app-header">
+                    <div className="header-controls">
+                        <button type="button" onClick={handleCreateNew} className="primary">Create</button>
+                        <Recording compact />
+                    </div>
+                </header>
+                {page === "volumes" ? (
+                    <div className="app-layout">
+                        <aside className="app-left">
+                            <AllVolumes onOpen={handleOpen} onEdit={handleEdit} />
+                        </aside>
 
-            <div className="app-layout">
-                <aside className="app-left">
-                    <AllVolumes onOpen={handleOpen} onEdit={handleEdit} />
-                </aside>
+                        <main className="app-main">
+                            {mode === "view" && openVolumeId ? (
+                                <VolumeDetail id={openVolumeId} />
+                            ) : null}
 
-                <main className="app-main">
-                    {mode === "view" && openVolumeId ? (
-                        <VolumeDetail id={openVolumeId} />
-                    ) : null}
+                            {mode === "edit" ? (
+                                <div style={{ marginTop: 12 }}>
+                                    <VolumeEditor volumeId={openVolumeId ?? undefined} onSaved={(v) => { setOpenVolumeId(v.meta.id); setMode("view"); }} />
+                                </div>
+                            ) : null}
 
-                    {mode === "edit" ? (
-                        <div style={{ marginTop: 12 }}>
-                            <VolumeEditor volumeId={openVolumeId ?? undefined} onSaved={(v) => { setOpenVolumeId(v.meta.id); setMode("view"); }} />
-                        </div>
-                    ) : null}
+                            {mode === "create" ? (
+                                <div style={{ marginTop: 12 }}>
+                                    <VolumeEditor onSaved={(v) => { setOpenVolumeId(v.meta.id); setMode("view"); }} />
+                                </div>
+                            ) : null}
 
-                    {mode === "create" ? (
-                        <div style={{ marginTop: 12 }}>
-                            <VolumeEditor onSaved={(v) => { setOpenVolumeId(v.meta.id); setMode("view"); }} />
-                        </div>
-                    ) : null}
+                            {mode === "list" ? (
+                                <div className="markdown-placeholder card">
+                                    <h3>Welcome</h3>
+                                    <p className="muted">Select a volume on the left to view or edit. The right column shows recent agent actions.</p>
+                                </div>
+                            ) : null}
+                        </main>
 
-                    {mode === "list" ? (
-                        <div className="markdown-placeholder card">
-                            <h3>Welcome</h3>
-                            <p className="muted">Select a volume on the left to view or edit. The right column shows recent agent actions.</p>
-                        </div>
-                    ) : null}
-                </main>
-
-                <aside className="app-right">
-                    {mode === "view" && openVolumeId ? (
-                        <KeypointsPanel volumeId={openVolumeId} />
-                    ) : (
-                        <ControlNotifications title="Since last time..." />
-                    )}
-                </aside>
+                        <aside className="app-right">
+                            {mode === "view" && openVolumeId ? (
+                                <KeypointsPanel volumeId={openVolumeId} />
+                            ) : (
+                                <ControlNotifications title="Since last time..." />
+                            )}
+                        </aside>
+                    </div>
+                ) : (
+                    <main style={{ padding: 12 }}>
+                        <SettingsPage />
+                    </main>
+                )}
             </div>
         </div>
     );

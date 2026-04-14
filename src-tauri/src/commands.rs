@@ -6,6 +6,7 @@ use std::thread;
 use tauri::{AppHandle, Manager};
 
 // internal
+use crate::archives::settings::types::Settings;
 use crate::archives::volumes::types::{
     CreateVolumeRequest, UpdateVolumeRequest, Volume, VolumeIndexEntry,
 };
@@ -236,6 +237,26 @@ pub async fn flatten_volume(app: AppHandle, id: String) -> Result<Volume, String
         Err(e) => eprintln!("flatten_volume error id={} err={}", id, e),
     }
     res.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn get_settings(app: AppHandle) -> Result<Settings, String> {
+    let state = app.state::<ArchiveRef>().clone();
+    let guard = state.lock().unwrap();
+    let db = guard.get_file_settings();
+
+    db.load().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn save_settings(app: AppHandle, settings: Settings) -> Result<(), String> {
+    let state = app.state::<ArchiveRef>().clone();
+    let mut guard = state.lock().unwrap();
+    let db = guard.get_file_settings();
+
+    db.save(&settings).map_err(|e| e.to_string())?;
+    guard.reload_settings().map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 #[tauri::command]

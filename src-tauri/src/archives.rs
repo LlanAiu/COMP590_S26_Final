@@ -1,5 +1,6 @@
 // builtin
 use crate::archives::{
+    settings::implementations::FileSettings,
     volumes::{types::UpdateVolumeRequest, VolumeDatabase},
     writer::{ollama::OllamaWriter, Writer},
 };
@@ -39,7 +40,7 @@ pub struct Archives {
     volume_database: Arc<FileDatabase>,
     control: Arc<OllamaController>,
     writer: Arc<OllamaWriter>,
-    settings: Arc<crate::archives::settings::implementations::FileSettings>,
+    settings: Arc<FileSettings>,
 }
 
 impl Archives {
@@ -409,5 +410,9 @@ impl Archives {
 
     pub fn get_volume_database(&self) -> Arc<FileDatabase> {
         Arc::clone(&self.volume_database)
+    }
+
+    pub fn get_file_settings(&self) -> Arc<FileSettings> {
+        Arc::clone(&self.settings)
     }
 }

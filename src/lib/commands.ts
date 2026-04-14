@@ -61,3 +61,17 @@ export async function clearControlLog(): Promise<void> {
     return invoke("clear_control_log");
 }
 
+export type Settings = { summarization_model: string; writer_model: string; control_model: string };
+
+export async function getSettings(): Promise<Settings> {
+    return invoke("get_settings");
+}
+
+export async function saveSettings(settings: Settings): Promise<void> {
+    return invoke("save_settings", { settings });
+}
+
+export async function reloadSettings(): Promise<void> {
+    return invoke("reload_settings");
+}
+
