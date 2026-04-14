@@ -17,7 +17,7 @@
     border: 1px solid var(--glass-border);
     display: flex;
     flex-direction: column;
-    height: calc(100% - 8px);
+    height: 100%;
     box-sizing: border-box;
     margin: 0;
 }

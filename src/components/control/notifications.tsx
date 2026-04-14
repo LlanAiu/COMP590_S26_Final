@@ -38,9 +38,9 @@ export default function ControlNotifications({ title = "Since you were last here
             ) : (
                 <ul className="control-log-list">
                     {entries.length === 0 ? (
-                        <li className="muted">No updates</li>
+                        <li className="muted updates">No updates</li>
                     ) : entries.map((e, i) => (
-                        <li key={i}>
+                        <li className="updates" key={i}>
                             <div style={{ fontSize: 12, color: '#666' }}>{new Date(e.timestamp).toLocaleString()}</div>
                             <div>{e.description}</div>
                         </li>

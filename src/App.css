@@ -18,6 +18,7 @@
     --glass-border: rgba(255, 255, 255, 0.06);
     --header-height: 56px;
 
+    height: 100vh;
     font-family: var(--font-sans);
     font-size: var(--font-size);
     line-height: var(--line-height);
@@ -26,6 +27,13 @@
 
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+}
+
+/* Ensure height/padding calculations include borders/padding to avoid 100% overflow */
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
 }
 
 body {
@@ -62,7 +70,7 @@ body {
     top: calc(var(--header-height) + 8px);
     bottom: 10px;
     overflow: hidden;
-    padding: 12px;
+    padding: 12px 12px 8px 12px;
 }
 
 .app-main {
@@ -72,7 +80,7 @@ body {
 
 .app-header {
     position: fixed;
-    top: 0;
+    top: 10px;
     left: 0;
     right: 0;
     height: var(--header-height);
@@ -135,9 +143,12 @@ body {
     display: flex;
     flex-direction: column;
     height: 100%;
+    max-height: 100%;
+    box-sizing: border-box;
     gap: 10px;
     overflow: auto;
 }
+
 
 .control-panel h4 {
     margin: 12px 0 6px 0;
@@ -149,6 +160,11 @@ body {
 
 .control-panel li {
     margin-bottom: 8px;
+    margin-left: 14px;
+}
+
+.control-panel .updates {
+    margin-left: 0px;
 }
 
 /* Buttons */
