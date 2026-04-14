@@ -1,7 +1,7 @@
 // builtin
 use crate::archives::{
     volumes::{types::UpdateVolumeRequest, VolumeDatabase},
-    writer::ollama::OllamaWriter,
+    writer::{ollama::OllamaWriter, Writer},
 };
 use std::{
     path::PathBuf,
@@ -174,6 +174,7 @@ impl Archives {
         let summaries_snapshot = guard.clone();
         let db_handle = Arc::clone(&self.volume_database);
         let controller_handle = Arc::clone(&self.control);
+        let writer_handle = Arc::clone(&self.writer);
 
         // helper to append a control log entry next to the volumes base
         fn append_control_log(db: &std::sync::Arc<FileDatabase>, desc: String) {
@@ -224,16 +225,25 @@ impl Archives {
                     if let Some(entry) = matched {
                         match tauri::async_runtime::block_on(db_handle.read_volume(&entry.id)) {
                             Ok(vol) => {
-                                let mut new_content = vol.content.clone();
-                                if !new_content.ends_with('\n') {
-                                    new_content.push('\n');
-                                }
-                                new_content.push_str("\n");
-                                new_content.push_str(&note.content);
+                                // Use the writer to integrate the note into the existing document
+                                let compose_res = tauri::async_runtime::block_on(
+                                    writer_handle.compose(&vol.content, vec![note.clone()]),
+                                );
+
+                                let composed = match compose_res {
+                                    Ok(text) => text,
+                                    Err(e) => {
+                                        eprintln!(
+                                            "Writer failed to compose content for volume {}: {:?}",
+                                            entry.id, e
+                                        );
+                                        continue;
+                                    }
+                                };
 
                                 let update = UpdateVolumeRequest {
                                     title: None,
-                                    content: Some(new_content),
+                                    content: Some(composed),
                                     description: None,
                                     tags: None,
                                     version: Some(vol.meta.version),
@@ -244,14 +254,14 @@ impl Archives {
                                 ) {
                                     Ok(updated) => {
                                         println!(
-                                            "Appended note to volume '{}'(id={})",
+                                            "Wrote composed content to volume '{}'(id={})",
                                             updated.meta.title, updated.meta.id
                                         );
                                         // log the write in the control log so the frontend can show it
                                         append_control_log(
                                             &db_handle,
                                             format!(
-                                                "Appended note to volume '{}'(id={})",
+                                                "Wrote composed content to volume '{}'(id={})",
                                                 updated.meta.title, updated.meta.id
                                             ),
                                         );
@@ -259,7 +269,7 @@ impl Archives {
                                     }
                                     Err(e) => {
                                         eprintln!(
-                                            "Failed to append note to volume {}: {}",
+                                            "Failed to write composed content to volume {}: {}",
                                             entry.id, e
                                         );
                                     }
