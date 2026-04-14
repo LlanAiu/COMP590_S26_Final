@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 use ollama_rs::generation::completion::request::GenerationRequest;
 use ollama_rs::Ollama;
@@ -9,7 +9,7 @@ use crate::archives::writer::{Writer, WriterError};
 
 pub struct OllamaWriter {
     ollama: Arc<Ollama>,
-    model: String,
+    model: Arc<RwLock<String>>,
 }
 
 impl OllamaWriter {
@@ -17,7 +17,13 @@ impl OllamaWriter {
         let ollama = Ollama::default();
         OllamaWriter {
             ollama: Arc::new(ollama),
-            model: model.unwrap_or_else(|| OLLAMA_MODEL.to_string()),
+            model: Arc::new(RwLock::new(model.unwrap_or_else(|| OLLAMA_MODEL.to_string()))),
+        }
+    }
+
+    pub fn set_model(&self, model: String) {
+        if let Ok(mut w) = self.model.write() {
+            *w = model;
         }
     }
 }
@@ -47,7 +53,7 @@ impl Writer for OllamaWriter {
                 prompt.push_str(&format!("- [{}] {}\n", i + 1, n.content.trim()));
             }
 
-            let gen_req = GenerationRequest::new(self.model.clone(), prompt);
+            let gen_req = GenerationRequest::new(self.model.read().unwrap().clone(), prompt);
             let res = self
                 .ollama
                 .generate(gen_req)

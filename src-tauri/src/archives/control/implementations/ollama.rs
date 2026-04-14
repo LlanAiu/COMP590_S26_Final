@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 use chrono::Utc;
 
@@ -16,7 +16,7 @@ use crate::archives::volumes::VolumeDatabase;
 /// available volumes, and expects a JSON array of `ControlAction` objects.
 pub struct OllamaController {
     ollama: Arc<Ollama>,
-    model: String,
+    model: Arc<RwLock<String>>,
 }
 
 impl OllamaController {
@@ -24,7 +24,15 @@ impl OllamaController {
         let ollama = Ollama::default();
         OllamaController {
             ollama: Arc::new(ollama),
-            model: model.unwrap_or_else(|| OLLAMA_MODEL.to_string()),
+            model: Arc::new(RwLock::new(
+                model.unwrap_or_else(|| OLLAMA_MODEL.to_string()),
+            )),
+        }
+    }
+
+    pub fn set_model(&self, model: String) {
+        if let Ok(mut w) = self.model.write() {
+            *w = model;
         }
     }
 
@@ -74,7 +82,8 @@ Return a JSON array of action objects. If no actions are appropriate, please ret
             vols = vols
         );
 
-        let gen_req = GenerationRequest::new(self.model.clone(), prompt);
+        let model = self.model.read().unwrap().clone();
+        let gen_req = GenerationRequest::new(model, prompt);
         let res = self
             .ollama
             .generate(gen_req)
@@ -191,7 +200,8 @@ Return a JSON array of action objects. If no actions are appropriate, please ret
             text = text
         );
 
-        let gen_req = GenerationRequest::new(self.model.clone(), prompt);
+        let model = self.model.read().unwrap().clone();
+        let gen_req = GenerationRequest::new(model, prompt);
         let res = self
             .ollama
             .generate(gen_req)
@@ -243,7 +253,8 @@ Return a JSON array of action objects. If no actions are appropriate, please ret
             text = text
         );
 
-        let gen_req = GenerationRequest::new(self.model.clone(), prompt);
+        let model = self.model.read().unwrap().clone();
+        let gen_req = GenerationRequest::new(model, prompt);
         let res = self
             .ollama
             .generate(gen_req)

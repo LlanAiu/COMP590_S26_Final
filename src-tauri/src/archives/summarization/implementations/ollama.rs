@@ -24,11 +24,15 @@ pub struct OllamaSummarizer {
 }
 
 impl OllamaSummarizer {
-    pub fn new(db: Option<Arc<FileDatabase>>) -> OllamaSummarizer {
+    pub fn new(db: Option<Arc<FileDatabase>>, model: Option<String>) -> OllamaSummarizer {
         OllamaSummarizer {
             half_stream: HalfStream::new(CHUNK_SENTENCE_LENGTH),
-            ollama: OllamaModule::new_with_db(db),
+            ollama: OllamaModule::new_with_db_and_model(db, model),
         }
+    }
+
+    pub fn set_model(&self, model: String) {
+        self.ollama.set_model(model);
     }
 }
 

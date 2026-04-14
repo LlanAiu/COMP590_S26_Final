@@ -1,5 +1,5 @@
 // builtin
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
@@ -20,7 +20,7 @@ const TEMP_CATEGORIES: &[&str] = &["To-Dos's", "Build Updates", "Things to Resea
 
 pub struct OllamaModule {
     ollama: Arc<Ollama>,
-    model: String,
+    model: Arc<RwLock<String>>,
     handle: Option<JoinHandle<()>>,
     stop_sender: Option<Sender<()>>,
     categories_db: Option<Arc<FileDatabase>>,
@@ -32,7 +32,7 @@ impl OllamaModule {
 
         OllamaModule {
             ollama: Arc::new(ollama),
-            model: OLLAMA_MODEL.into(),
+            model: Arc::new(RwLock::new(OLLAMA_MODEL.into())),
             handle: None,
             stop_sender: None,
             categories_db: None,
@@ -45,13 +45,33 @@ impl OllamaModule {
         m
     }
 
+    pub fn new_with_db_and_model(
+        db: Option<Arc<FileDatabase>>,
+        model: Option<String>,
+    ) -> OllamaModule {
+        let mut m = OllamaModule::new();
+        m.categories_db = db;
+        if let Some(mdl) = model {
+            if let Ok(mut w) = m.model.write() {
+                *w = mdl;
+            }
+        }
+        m
+    }
+
+    pub fn set_model(&self, model: String) {
+        if let Ok(mut w) = self.model.write() {
+            *w = model;
+        }
+    }
+
     pub fn setup_stream(
         &mut self,
         consolidated_receiver: Receiver<Transcript>,
         summary_sender: Sender<Summary>,
     ) {
         let (stop_tx, stop_rx) = bounded::<()>(1);
-        let model = self.model.clone();
+        let model = Arc::clone(&self.model);
         let ollama_ref = Arc::clone(&self.ollama);
         let categories_db_clone = self.categories_db.clone();
 
@@ -93,7 +113,7 @@ impl OllamaModule {
 
                                 let tx = summary_sender.clone();
                                 let prompt_clone = prompt.clone();
-                                let model_clone = model.clone();
+                                let model_clone = { let r = model.read().unwrap(); r.clone() };
                                 let ollama_clone = Arc::clone(&ollama_ref);
                                 tauri::async_runtime::spawn(async move {
                                     let res = send_message_ollama(ollama_clone, prompt_clone, model_clone).await;
@@ -159,7 +179,7 @@ impl OllamaModule {
 
                             let tx = summary_sender.clone();
                             let prompt_clone = prompt.clone();
-                            let model_clone = model.clone();
+                            let model_clone = { let r = model.read().unwrap(); r.clone() };
                             let ollama_clone = Arc::clone(&ollama_ref);
                             tauri::async_runtime::spawn(async move {
                                 let res = send_message_ollama(ollama_clone, prompt_clone, model_clone).await;

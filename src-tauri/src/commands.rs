@@ -237,3 +237,15 @@ pub async fn flatten_volume(app: AppHandle, id: String) -> Result<Volume, String
     }
     res.map_err(|e| e.to_string())
 }
+
+#[tauri::command]
+pub fn reload_settings(app: AppHandle) -> Result<(), String> {
+    let state = app.state::<ArchiveRef>().clone();
+    let state_ref = Arc::clone(&state);
+
+    let mut guard = state_ref.lock().unwrap();
+    match guard.reload_settings() {
+        Ok(_) => Ok(()),
+        Err(e) => Err(e.to_string()),
+    }
+}

@@ -25,6 +25,7 @@ use chrono::Utc;
 
 // modules
 pub mod control;
+pub mod settings;
 pub mod summarization;
 pub mod transcription;
 pub mod volumes;
@@ -38,6 +39,7 @@ pub struct Archives {
     volume_database: Arc<FileDatabase>,
     control: Arc<OllamaController>,
     writer: Arc<OllamaWriter>,
+    settings: Arc<crate::archives::settings::implementations::FileSettings>,
 }
 
 impl Archives {
@@ -50,10 +52,23 @@ impl Archives {
         let file_db: Arc<FileDatabase> = Arc::new(FileDatabase::new(volumes_dir));
 
         let db_ref: Arc<FileDatabase> = Arc::clone(&file_db);
-        let summarizer: OllamaSummarizer = OllamaSummarizer::new(Some(db_ref.clone()));
-        let controller = Arc::new(OllamaController::new(None));
 
-        let writer = Arc::new(OllamaWriter::new(None));
+        // load settings (single JSON at root of auto-archives)
+        let settings_base = base_data_dir.join("auto-archives");
+        let settings_db =
+            crate::archives::settings::implementations::FileSettings::new(settings_base.clone());
+        let settings = match settings_db.load() {
+            Ok(s) => s,
+            Err(_) => crate::archives::settings::types::Settings::default(),
+        };
+
+        let summarizer: OllamaSummarizer = OllamaSummarizer::new(
+            Some(db_ref.clone()),
+            Some(settings.summarization_model.clone()),
+        );
+        let controller = Arc::new(OllamaController::new(Some(settings.control_model.clone())));
+
+        let writer = Arc::new(OllamaWriter::new(Some(settings.writer_model.clone())));
 
         return Ok(Archives {
             transcriber,
@@ -63,6 +78,7 @@ impl Archives {
             volume_database: file_db,
             control: controller,
             writer,
+            settings: Arc::new(settings_db),
         });
     }
 
@@ -371,6 +387,24 @@ impl Archives {
         });
 
         Ok(())
+    }
+
+    pub fn reload_settings(&self) -> Result<(), ApplicationError> {
+        // load settings and apply to subsystems
+        match self.settings.load() {
+            Ok(s) => {
+                // apply to writer and controller
+                self.writer.set_model(s.writer_model.clone());
+                self.control.set_model(s.control_model.clone());
+                // summarizer lives as a field; it exposes set_model which updates internal module
+                self.summarizer.set_model(s.summarization_model.clone());
+                Ok(())
+            }
+            Err(e) => Err(ApplicationError::InternalError(format!(
+                "failed to reload settings: {}",
+                e
+            ))),
+        }
     }
 
     pub fn get_volume_database(&self) -> Arc<FileDatabase> {
