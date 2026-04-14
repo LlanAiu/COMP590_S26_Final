@@ -10,7 +10,7 @@ import VolumeTree from "./volume-tree";
 import "./volumes.css";
 
 
-export default function AllVolumes({ onOpen, onEdit }: { onOpen?: (id: string) => void; onEdit?: (id: string) => void }) {
+export default function AllVolumes({ onOpen, onEdit, mode }: { onOpen?: (id: string) => void; onEdit?: (id: string) => void; mode?: "list" | "view" | "edit" | "create" }) {
     const [list, setList] = useState<VolumeIndexEntryFull[]>([]);
 
     async function refresh() {
@@ -31,7 +31,7 @@ export default function AllVolumes({ onOpen, onEdit }: { onOpen?: (id: string) =
         <div className="volumes">
             <h3>Volumes</h3>
             <button type="button" onClick={refresh}>Refresh</button>
-            <VolumeTree list={list} onRefresh={refresh} onOpen={onOpen} onEdit={onEdit} />
+            <VolumeTree list={list} onRefresh={refresh} onOpen={onOpen} onEdit={onEdit} mode={mode ?? "list"} />
         </div>
     );
 }

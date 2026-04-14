@@ -31,7 +31,7 @@ function buildTree(list: VolumeIndexEntryFull[]): Node[] {
 
 import { useState } from "react";
 
-export default function VolumeTree({ list, onRefresh, onOpen, onEdit }: { list: VolumeIndexEntryFull[]; onRefresh: () => void; onOpen?: (id: string) => void; onEdit?: (id: string) => void }) {
+export default function VolumeTree({ list, onRefresh, onOpen, onEdit, mode }: { list: VolumeIndexEntryFull[]; onRefresh: () => void; onOpen?: (id: string) => void; onEdit?: (id: string) => void; mode?: "list" | "view" | "edit" | "create" }) {
     const roots = buildTree(list || []);
     const [expanded, setExpanded] = useState<Record<string, boolean>>({});
     const [selected, setSelected] = useState<string | null>(null);
@@ -106,9 +106,9 @@ export default function VolumeTree({ list, onRefresh, onOpen, onEdit }: { list: 
                 {roots.map((r) => renderNode(r))}
             </ul>
 
-            {selected ? (
-                <div className="sidebar-section selected-actions" style={{ marginTop: 12 }}>
-                    <div style={{ display: 'flex', gap: 8 }}>
+            {selected && mode !== "list" ? (
+                <div className="sidebar-section selected-actions" style={{ marginTop: 12, display: 'flex', justifyContent: 'center' }}>
+                    <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
                         <button type="button" onClick={() => { setSelected(null); onEdit?.(selected!); }}>Edit</button>
                         <button type="button" onClick={async () => { try { await commands.flattenVolume(selected); onRefresh(); } catch (err) { console.error(err); } }}>Flatten</button>
                         <button type="button" onClick={async () => { if (!confirm('Delete this volume?')) return; try { await commands.deleteVolume(selected); setSelected(null); onRefresh(); } catch (err) { console.error(err); } }}>Delete</button>

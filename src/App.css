@@ -35,20 +35,20 @@ body {
 .app-layout {
     display: flex;
     gap: 20px;
-    padding: 20px;
+    padding: 10px;
 }
 
 .app-main {
     flex: 1;
     z-index: 2;
     min-height: calc(100vh - 48px);
-    padding-top: 16px;
+    padding-top: 30px;
 }
 
 .app-left {
     width: 300px;
     position: fixed;
-    left: 40px;
+    left: 36px;
     top: 10px;
     bottom: 10px;
     overflow: hidden;
@@ -56,7 +56,7 @@ body {
 }
 
 .app-right {
-    width: 310px;
+    width: 300px;
     position: fixed;
     right: 8px;
     top: calc(var(--header-height) + 8px);
@@ -66,8 +66,8 @@ body {
 }
 
 .app-main {
-    margin-left: 340px;
-    margin-right: 340px;
+    margin-left: 320px;
+    margin-right: 330px;
 }
 
 .app-header {
@@ -139,8 +139,11 @@ body {
     overflow: auto;
 }
 
+.control-panel h4 {
+    margin: 12px 0 6px 0;
+}
+
 .control-panel ul {
-    padding-left: 16px;
     margin: 6px 0 0 0;
 }
 

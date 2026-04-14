@@ -80,7 +80,7 @@ export default function App() {
                 {page === "volumes" ? (
                     <div className="app-layout">
                         <aside className="app-left">
-                            <AllVolumes onOpen={handleOpen} onEdit={handleEdit} />
+                            <AllVolumes onOpen={handleOpen} onEdit={handleEdit} mode={mode} />
                         </aside>
 
                         <main className="app-main">
