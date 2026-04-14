@@ -1,5 +1,8 @@
 // builtin
-use crate::archives::volumes::{types::UpdateVolumeRequest, VolumeDatabase};
+use crate::archives::{
+    volumes::{types::UpdateVolumeRequest, VolumeDatabase},
+    writer::ollama::OllamaWriter,
+};
 use std::{
     path::PathBuf,
     sync::{Arc, Mutex},
@@ -25,6 +28,7 @@ pub mod control;
 pub mod summarization;
 pub mod transcription;
 pub mod volumes;
+pub mod writer;
 
 pub struct Archives {
     transcriber: ParakeetTranscriber,
@@ -33,6 +37,7 @@ pub struct Archives {
     summary_thread: Option<JoinHandle<()>>,
     volume_database: Arc<FileDatabase>,
     control: Arc<OllamaController>,
+    writer: Arc<OllamaWriter>,
 }
 
 impl Archives {
@@ -48,6 +53,8 @@ impl Archives {
         let summarizer: OllamaSummarizer = OllamaSummarizer::new(Some(db_ref.clone()));
         let controller = Arc::new(OllamaController::new(None));
 
+        let writer = Arc::new(OllamaWriter::new(None));
+
         return Ok(Archives {
             transcriber,
             summarizer,
@@ -55,6 +62,7 @@ impl Archives {
             summary_thread: None,
             volume_database: file_db,
             control: controller,
+            writer,
         });
     }
 
