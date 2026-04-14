@@ -28,6 +28,10 @@
     -moz-osx-font-smoothing: grayscale;
 }
 
+body {
+    margin: 2px;
+}
+
 .app-layout {
     display: flex;
     gap: 20px;
@@ -44,7 +48,7 @@
 .app-left {
     width: 300px;
     position: fixed;
-    left: 10px;
+    left: 40px;
     top: 10px;
     bottom: 10px;
     overflow: hidden;
