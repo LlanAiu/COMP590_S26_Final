@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { getSettings, saveSettings, reloadSettings, Settings } from "../../lib/commands";
+import "./settings.css";
 
 const MODELS = ["gemma3:1b", "gemma3:4b", "gemma4:e2b"];
 
@@ -30,10 +31,10 @@ export default function SettingsPage() {
     };
 
     return (
-        <div style={{ padding: 16, maxWidth: 640 }}>
+        <div className="card settings-card">
             <h3>Settings</h3>
-            <div style={{ marginTop: 8 }}>
-                <label style={{ display: "block", marginBottom: 6 }}>Summarization model</label>
+            <div className="settings-field">
+                <label>Summarization model</label>
                 <select value={settings.summarization_model} onChange={(e) => setSettings({ ...settings, summarization_model: e.target.value })}>
                     {MODELS.map((m) => (
                         <option key={m} value={m}>{m}</option>
@@ -41,8 +42,8 @@ export default function SettingsPage() {
                 </select>
             </div>
 
-            <div style={{ marginTop: 12 }}>
-                <label style={{ display: "block", marginBottom: 6 }}>Writer model</label>
+            <div className="settings-field">
+                <label>Writer model</label>
                 <select value={settings.writer_model} onChange={(e) => setSettings({ ...settings, writer_model: e.target.value })}>
                     {MODELS.map((m) => (
                         <option key={m} value={m}>{m}</option>
@@ -50,8 +51,8 @@ export default function SettingsPage() {
                 </select>
             </div>
 
-            <div style={{ marginTop: 12 }}>
-                <label style={{ display: "block", marginBottom: 6 }}>Control model</label>
+            <div className="settings-field">
+                <label>Control model</label>
                 <select value={settings.control_model} onChange={(e) => setSettings({ ...settings, control_model: e.target.value })}>
                     {MODELS.map((m) => (
                         <option key={m} value={m}>{m}</option>
@@ -59,9 +60,9 @@ export default function SettingsPage() {
                 </select>
             </div>
 
-            <div style={{ marginTop: 16 }}>
+            <div className="settings-controls">
                 <button onClick={onSave} className="primary">Save</button>
-                {status ? <span style={{ marginLeft: 12 }}>{status}</span> : null}
+                {status ? <span className="settings-status">{status}</span> : null}
             </div>
         </div>
     );

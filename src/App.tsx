@@ -117,7 +117,7 @@ export default function App() {
                         </aside>
                     </div>
                 ) : (
-                    <main style={{ padding: 12 }}>
+                    <main style={{ padding: 12, minHeight: "calc(100vh - var(--header-height))", display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <SettingsPage />
                     </main>
                 )}
