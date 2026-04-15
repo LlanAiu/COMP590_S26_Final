@@ -1,5 +1,5 @@
 // builtin
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
@@ -20,7 +20,7 @@ const TEMP_CATEGORIES: &[&str] = &["To-Dos's", "Build Updates", "Things to Resea
 
 pub struct OllamaModule {
     ollama: Arc<Ollama>,
-    model: String,
+    model: Arc<RwLock<String>>,
     handle: Option<JoinHandle<()>>,
     stop_sender: Option<Sender<()>>,
     categories_db: Option<Arc<FileDatabase>>,
@@ -32,7 +32,7 @@ impl OllamaModule {
 
         OllamaModule {
             ollama: Arc::new(ollama),
-            model: OLLAMA_MODEL.into(),
+            model: Arc::new(RwLock::new(OLLAMA_MODEL.into())),
             handle: None,
             stop_sender: None,
             categories_db: None,
@@ -45,13 +45,33 @@ impl OllamaModule {
         m
     }
 
+    pub fn new_with_db_and_model(
+        db: Option<Arc<FileDatabase>>,
+        model: Option<String>,
+    ) -> OllamaModule {
+        let mut m = OllamaModule::new();
+        m.categories_db = db;
+        if let Some(mdl) = model {
+            if let Ok(mut w) = m.model.write() {
+                *w = mdl;
+            }
+        }
+        m
+    }
+
+    pub fn set_model(&self, model: String) {
+        if let Ok(mut w) = self.model.write() {
+            *w = model;
+        }
+    }
+
     pub fn setup_stream(
         &mut self,
         consolidated_receiver: Receiver<Transcript>,
         summary_sender: Sender<Summary>,
     ) {
         let (stop_tx, stop_rx) = bounded::<()>(1);
-        let model = self.model.clone();
+        let model = Arc::clone(&self.model);
         let ollama_ref = Arc::clone(&self.ollama);
         let categories_db_clone = self.categories_db.clone();
 
@@ -66,13 +86,21 @@ impl OllamaModule {
                                     match tauri::async_runtime::block_on(db.list_index()) {
                                         Ok(list) => {
                                             if !list.is_empty() {
-                                                categories = list
-                                                    .into_iter()
-                                                    .map(|e| match e.description {
-                                                        Some(d) if !d.trim().is_empty() => format!("{} — {}", e.title, d.trim()),
-                                                        _ => e.title,
-                                                    })
-                                                    .collect();
+                                                // Build category strings; append stored AI summary from volume metadata when available.
+                                                for e in list.into_iter() {
+                                                    let mut entry_str = match e.description {
+                                                        Some(d) if !d.trim().is_empty() => format!("{} — {}", e.title.clone(), d.trim()),
+                                                        _ => e.title.clone(),
+                                                    };
+                                                    if let Ok(vol) = tauri::async_runtime::block_on(db.read_volume(&e.id)) {
+                                                        if let Some(ai) = vol.meta.ai_summary {
+                                                            if !ai.trim().is_empty() {
+                                                                entry_str.push_str(&format!(" — AI: {}", ai.trim()));
+                                                            }
+                                                        }
+                                                    }
+                                                    categories.push(entry_str);
+                                                }
                                             }
                                         }
                                         Err(err) => {
@@ -85,7 +113,7 @@ impl OllamaModule {
 
                                 let tx = summary_sender.clone();
                                 let prompt_clone = prompt.clone();
-                                let model_clone = model.clone();
+                                let model_clone = { let r = model.read().unwrap(); r.clone() };
                                 let ollama_clone = Arc::clone(&ollama_ref);
                                 tauri::async_runtime::spawn(async move {
                                     let res = send_message_ollama(ollama_clone, prompt_clone, model_clone).await;
@@ -120,18 +148,25 @@ impl OllamaModule {
                 recv(consolidated_receiver) -> msg => {
                     match msg {
                         Ok(sentences) => {
-                            let mut categories: Vec<String> = TEMP_CATEGORIES.iter().map(|s| s.to_string()).collect();
+                            let mut categories: Vec<String> = Vec::new();
                             if let Some(db) = categories_db_clone.as_ref() {
                                 match tauri::async_runtime::block_on(db.list_index()) {
                                     Ok(list) => {
                                         if !list.is_empty() {
-                                            categories = list
-                                                .into_iter()
-                                                .map(|e| match e.description {
-                                                    Some(d) if !d.trim().is_empty() => format!("{} — {}", e.title, d.trim()),
-                                                    _ => e.title,
-                                                })
-                                                .collect();
+                                            for e in list.into_iter() {
+                                                let mut entry_str = match e.description {
+                                                    Some(d) if !d.trim().is_empty() => format!("{} — {}", e.title.clone(), d.trim()),
+                                                    _ => e.title.clone(),
+                                                };
+                                                if let Ok(vol) = tauri::async_runtime::block_on(db.read_volume(&e.id)) {
+                                                    if let Some(ai) = vol.meta.ai_summary {
+                                                        if !ai.trim().is_empty() {
+                                                            entry_str.push_str(&format!(" — AI: {}", ai.trim()));
+                                                        }
+                                                    }
+                                                }
+                                                categories.push(entry_str);
+                                            }
                                         }
                                     }
                                     Err(err) => {
@@ -144,7 +179,7 @@ impl OllamaModule {
 
                             let tx = summary_sender.clone();
                             let prompt_clone = prompt.clone();
-                            let model_clone = model.clone();
+                            let model_clone = { let r = model.read().unwrap(); r.clone() };
                             let ollama_clone = Arc::clone(&ollama_ref);
                             tauri::async_runtime::spawn(async move {
                                 let res = send_message_ollama(ollama_clone, prompt_clone, model_clone).await;
@@ -204,14 +239,14 @@ fn build_prompt(transcript: &Transcript, categories: &[String]) -> String {
     let joined = transcript.join("\n");
 
     let mut prompt = String::new();
-    prompt.push_str("You are an assistant that reads an audio transcript and returns concise notes and assigns each note a category from the provided list.\n\n");
-    prompt.push_str("Categories (Name - Description):\n");
+    prompt.push_str("As a personal archivist, your job is to parse through the provided audio transcript of the user's monologue and return 0 - 2 concise, but complete notes. Then assign each note to the category that the note most closely aligns with from the provided list. Expect faulty punctuation and transcription typos that you'll need to infer the meaning through.\n\n");
+    prompt.push_str("Categories (Name - Description) -- DO NOT EXTRACT NOTES FROM HERE:\n");
     for category in categories.iter() {
         prompt.push_str(&format!("- {}\n", category));
     }
-    prompt.push_str("\nTranscript:\n");
+    prompt.push_str("\n Transcript -- EXTRACT NOTES FROM HERE:\n");
     prompt.push_str(&joined);
-    prompt.push_str("\n\nOutput format: A JSON array of note objects composed of \"content\" (the important idea) and \"category\" (which of the listed category names it best fits under).\n");
+    prompt.push_str("\n\nOutput format: A JSON array of note objects composed of \"content\" (the important idea) and \"category\" (which of the listed category names it fits under). Only extract the important information, ignoring filler words or irrelevant content. \n");
 
     prompt
 }
@@ -222,7 +257,7 @@ async fn send_message_ollama(
     model: String,
 ) -> Result<String, SummarizationError> {
     let res = ollama
-        .generate(GenerationRequest::new(model, message))
+        .generate(GenerationRequest::new(model, message).think(false))
         .await
         .map_err(|err| SummarizationError::InternalError(err.to_string()))?;
 

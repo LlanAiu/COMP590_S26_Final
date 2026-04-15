@@ -7,6 +7,8 @@
 
 export type VolumeIndexEntry = { id: string; title: string; updated_at: string; snippet?: string };
 
+export type VolumeIndexEntryFull = { id: string; title: string; updated_at: string; snippet?: string; parent?: string | null };
+
 export type VolumeMeta = {
     id: string;
     title: string;
@@ -14,6 +16,9 @@ export type VolumeMeta = {
     created_at: string;
     updated_at: string;
     tags: string[];
+    parent?: string | null;
+    keypoints?: string[];
+    ai_summary?: string;
     version: number;
 };
 

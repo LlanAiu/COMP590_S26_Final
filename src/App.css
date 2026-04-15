@@ -1,44 +1,250 @@
 :root {
-    font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
-    font-size: 16px;
-    line-height: 24px;
-    font-weight: 400;
+    /* Typography */
+    --font-sans: Inter, Avenir, Helvetica, Arial, sans-serif;
+    --font-size: 15px;
+    --line-height: 1.5;
 
-    color: #0f0f0f;
-    background-color: #f6f6f6;
+    /* Colors */
+    --bg: #0f1724;
+    /* deep navy */
+    --panel: linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.01));
+    --card: rgba(255, 255, 255, 0.03);
+    --muted: #9aa4b2;
+    --text: #e6eef6;
+    --accent: #6ee7b7;
+    /* greenish */
+    --accent-2: #60a5fa;
+    /* blue */
+    --glass-border: rgba(255, 255, 255, 0.06);
+    --header-height: 56px;
 
-    font-synthesis: none;
-    text-rendering: optimizeLegibility;
+    font-family: var(--font-sans);
+    font-size: var(--font-size);
+    line-height: var(--line-height);
+    color: var(--text);
+}
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+body {
+    min-height: 99.49vh;
+    background: radial-gradient(1200px 400px at 10% 10%, rgba(96, 165, 250, 0.06), transparent), var(--bg);
+
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    -webkit-text-size-adjust: 100%;
+    margin: 2px;
 }
 
 .app-layout {
     display: flex;
-    gap: 16px;
+    gap: 20px;
+    padding: 10px;
 }
 
 .app-main {
     flex: 1;
+    z-index: 2;
+    min-height: calc(100vh - 48px);
+    padding-top: 30px;
 }
 
-.app-sidebar {
-    width: 420px;
+.app-left {
+    width: 300px;
+    position: fixed;
+    left: 36px;
+    top: 10px;
+    bottom: 10px;
+    overflow: hidden;
+    padding: 8px;
+}
+
+.app-right {
+    width: 300px;
+    position: fixed;
+    right: 8px;
+    top: calc(var(--header-height) + 8px);
+    bottom: 10px;
+    overflow: hidden;
+    padding: 12px 12px 8px 12px;
+}
+
+.app-main {
+    margin-left: 346px;
+    margin-right: 315px;
+}
+
+.app-header {
+    position: fixed;
+    top: 10px;
+    left: 0;
+    right: 0;
+    height: var(--header-height);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 20px;
+    z-index: 0;
+    background: rgba(15, 23, 36, 0.35);
+    backdrop-filter: blur(6px);
+}
+
+.app-header h1 {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    margin: 0;
+    pointer-events: none;
+}
+
+.header-controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-left: auto;
+}
+
+.markdown-placeholder {
+    padding: 18px 20px;
+    margin-top: 0;
 }
 
 .spacing-top {
-    margin-top: 24px;
+    margin-top: 20px;
 }
 
 .sidebar-section {
-    margin-top: 12px;
+    margin-top: 14px;
 }
 
 .sidebar-actions {
-    margin-top: 8px;
+    margin-top: 10px;
 }
 
 .btn-close {
     margin-left: 8px;
+}
+
+/* Utility cards */
+.card {
+    background: var(--card);
+    border: 1px solid var(--glass-border);
+    border-radius: 10px;
+    padding: 14px;
+    box-shadow: 0 6px 18px rgba(2, 6, 23, 0.6);
+}
+
+/* Control panel specific tweaks to improve keypoints layout */
+.control-panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    max-height: 100%;
+    box-sizing: border-box;
+    gap: 10px;
+    overflow: auto;
+}
+
+
+.control-panel h4 {
+    margin: 12px 0 6px 0;
+}
+
+.control-panel ul {
+    margin: 6px 0 0 0;
+}
+
+.control-panel li {
+    margin-bottom: 8px;
+    margin-left: 15px;
+}
+
+.control-panel .updates {
+    margin-left: 0px;
+}
+
+/* Buttons */
+button {
+    background: transparent;
+    color: var(--text);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    padding: 8px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 160ms ease;
+}
+
+button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 14px rgba(2, 6, 23, 0.45);
+}
+
+button.primary {
+    background: linear-gradient(90deg, var(--accent-2), var(--accent));
+    border: none;
+    color: #042028;
+    font-weight: 600;
+}
+
+/* Lists */
+ul {
+    padding-left: 0;
+}
+
+/* Small text */
+.muted {
+    color: var(--muted);
+    font-size: 13px;
+}
+
+/* Control notifications list */
+.control-log-list {
+    list-style: none;
+    padding: 0;
+    margin: 8px 0 0 0;
+    overflow: auto;
+    flex: 1 1 auto;
+}
+
+.control-log-list li {
+    padding: 8px 10px;
+    border-radius: 8px;
+    margin-bottom: 8px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.02);
+}
+
+.control-log-list li div:first-child {
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.control-log-list li div:last-child {
+    margin-top: 4px;
+}
+
+/* Select / dropdown styling to match app theme and improve contrast */
+select {
+    background: rgba(255, 255, 255, 0.02);
+    color: var(--text);
+    border: 1px solid var(--glass-border);
+    padding: 8px 10px;
+    border-radius: 8px;
+    min-height: 38px;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%), linear-gradient(to right, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.02));
+    background-position: calc(100% - 20px) calc(1em + 2px), calc(100% - 15px) calc(1em + 2px), 0 0;
+    background-size: 5px 5px, 5px 5px, 100% 100%;
+    background-repeat: no-repeat;
+}
+
+/* Options should contrast on dark background */
+select option {
+    background: var(--bg);
+    color: var(--text);
 }

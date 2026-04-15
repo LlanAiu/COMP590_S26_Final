@@ -13,6 +13,11 @@ pub struct VolumeMeta {
     pub created_at: String,
     pub updated_at: String,
     pub tags: Vec<String>,
+    pub parent: Option<String>,
+    #[serde(default)]
+    pub keypoints: Option<Vec<String>>,
+    #[serde(default)]
+    pub ai_summary: Option<String>,
     pub version: u64,
     pub deleted: bool,
 }
@@ -48,4 +53,5 @@ pub struct VolumeIndexEntry {
     pub updated_at: String,
     pub snippet: Option<String>,
     pub description: Option<String>,
+    pub parent: Option<String>,
 }

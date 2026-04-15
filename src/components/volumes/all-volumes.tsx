@@ -4,13 +4,14 @@
 import { useEffect, useState } from "react";
 
 // internal
-import type { VolumeIndexEntry } from "../../lib/volumes/types";
+import type { VolumeIndexEntryFull } from "../../lib/volumes/types";
 import * as commands from "../../lib/commands";
+import VolumeTree from "./volume-tree";
 import "./volumes.css";
 
 
-export default function AllVolumes({ onOpen }: { onOpen?: (id: string) => void }) {
-    const [list, setList] = useState<VolumeIndexEntry[]>([]);
+export default function AllVolumes({ onOpen, onEdit, mode }: { onOpen?: (id: string) => void; onEdit?: (id: string) => void; mode?: "list" | "view" | "edit" | "create" }) {
+    const [list, setList] = useState<VolumeIndexEntryFull[]>([]);
 
     async function refresh() {
         try {
@@ -30,17 +31,7 @@ export default function AllVolumes({ onOpen }: { onOpen?: (id: string) => void }
         <div className="volumes">
             <h3>Volumes</h3>
             <button type="button" onClick={refresh}>Refresh</button>
-            <ul className="volume-list">
-                {list.map((it) => (
-                    <li key={it.id} className="volume-item">
-                        <div><strong>{it.title}</strong></div>
-                        <div className="volume-meta">{it.updated_at}</div>
-                        <div className="volume-actions">
-                            <button type="button" onClick={() => onOpen?.(it.id)}>Open</button>
-                        </div>
-                    </li>
-                ))}
-            </ul>
+            <VolumeTree list={list} onRefresh={refresh} onOpen={onOpen} onEdit={onEdit} mode={mode ?? "list"} />
         </div>
     );
 }

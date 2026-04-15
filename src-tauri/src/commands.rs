@@ -6,6 +6,7 @@ use std::thread;
 use tauri::{AppHandle, Manager};
 
 // internal
+use crate::archives::settings::types::Settings;
 use crate::archives::volumes::types::{
     CreateVolumeRequest, UpdateVolumeRequest, Volume, VolumeIndexEntry,
 };
@@ -101,4 +102,171 @@ pub async fn list_volumes(app: AppHandle) -> Result<Vec<VolumeIndexEntry>, Strin
     };
 
     db.list_index().await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn nest_volume(
+    app: AppHandle,
+    parent_id: String,
+    child_id: String,
+) -> Result<Volume, String> {
+    println!("nest_volume called parent={} child={}", parent_id, child_id);
+    let state = app.state::<ArchiveRef>().clone();
+    let db = {
+        let guard = state.lock().unwrap();
+        guard.get_volume_database()
+    };
+
+    let res = db.nest_volume(&parent_id, &child_id).await;
+    match &res {
+        Ok(_) => println!("nest_volume ok parent={} child={}", parent_id, child_id),
+        Err(e) => eprintln!(
+            "nest_volume error parent={} child={} err={}",
+            parent_id, child_id, e
+        ),
+    }
+    res.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn merge_volumes(
+    app: AppHandle,
+    a_id: String,
+    b_id: String,
+    req: CreateVolumeRequest,
+) -> Result<Volume, String> {
+    println!("merge_volumes called a={} b={}", a_id, b_id);
+    let state = app.state::<ArchiveRef>().clone();
+    let db = {
+        let guard = state.lock().unwrap();
+        guard.get_volume_database()
+    };
+
+    let res = db.merge_volumes(&a_id, &b_id, req).await;
+    match &res {
+        Ok(_) => println!("merge_volumes ok a={} b={}", a_id, b_id),
+        Err(e) => eprintln!("merge_volumes error a={} b={} err={}", a_id, b_id, e),
+    }
+    res.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn split_volume(
+    app: AppHandle,
+    id: String,
+    first: CreateVolumeRequest,
+    second: CreateVolumeRequest,
+) -> Result<Vec<Volume>, String> {
+    println!("split_volume called id={}", id);
+    let state = app.state::<ArchiveRef>().clone();
+    let db = {
+        let guard = state.lock().unwrap();
+        guard.get_volume_database()
+    };
+
+    let res = db.split_volume(&id, first, second).await;
+    match &res {
+        Ok(_) => println!("split_volume ok id={}", id),
+        Err(e) => eprintln!("split_volume error id={} err={}", id, e),
+    }
+    res.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_control_log(
+    app: AppHandle,
+) -> Result<Vec<crate::archives::control::types::ControlLogEntry>, String> {
+    let state = app.state::<ArchiveRef>().clone();
+    let db = {
+        let guard = state.lock().unwrap();
+        guard.get_volume_database()
+    };
+
+    let base = db.base.clone();
+    if let Some(root) = base.parent() {
+        let log_path = root.join("control_log.json");
+        if log_path.exists() {
+            match std::fs::read_to_string(&log_path) {
+                Ok(s) => match serde_json::from_str::<
+                    Vec<crate::archives::control::types::ControlLogEntry>,
+                >(&s)
+                {
+                    Ok(v) => return Ok(v),
+                    Err(e) => return Err(e.to_string()),
+                },
+                Err(e) => return Err(e.to_string()),
+            }
+        }
+    }
+    Ok(vec![])
+}
+
+#[tauri::command]
+pub async fn clear_control_log(app: AppHandle) -> Result<(), String> {
+    let state = app.state::<ArchiveRef>().clone();
+    let db = {
+        let guard = state.lock().unwrap();
+        guard.get_volume_database()
+    };
+
+    let base = db.base.clone();
+    if let Some(root) = base.parent() {
+        let log_path = root.join("control_log.json");
+        if log_path.exists() {
+            match std::fs::write(&log_path, "[]") {
+                Ok(_) => return Ok(()),
+                Err(e) => return Err(e.to_string()),
+            }
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn flatten_volume(app: AppHandle, id: String) -> Result<Volume, String> {
+    println!("flatten_volume called id={}", id);
+    let state = app.state::<ArchiveRef>().clone();
+    let db = {
+        let guard = state.lock().unwrap();
+        guard.get_volume_database()
+    };
+
+    let res = db.flatten_volume(&id).await;
+    match &res {
+        Ok(_) => println!("flatten_volume ok id={}", id),
+        Err(e) => eprintln!("flatten_volume error id={} err={}", id, e),
+    }
+    res.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn get_settings(app: AppHandle) -> Result<Settings, String> {
+    let state = app.state::<ArchiveRef>().clone();
+    let guard = state.lock().unwrap();
+    let db = guard.get_file_settings();
+
+    db.load().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn save_settings(app: AppHandle, settings: Settings) -> Result<(), String> {
+    let state = app.state::<ArchiveRef>().clone();
+    let mut guard = state.lock().unwrap();
+    let db = guard.get_file_settings();
+
+    db.save(&settings).map_err(|e| e.to_string())?;
+    guard.reload_settings().map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn reload_settings(app: AppHandle) -> Result<(), String> {
+    let state = app.state::<ArchiveRef>().clone();
+    let state_ref = Arc::clone(&state);
+
+    let mut guard = state_ref.lock().unwrap();
+    match guard.reload_settings() {
+        Ok(_) => Ok(()),
+        Err(e) => Err(e.to_string()),
+    }
 }

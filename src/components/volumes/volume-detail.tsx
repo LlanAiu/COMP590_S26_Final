@@ -15,21 +15,21 @@ import { readVolume } from "../../lib/commands";
 export default function VolumeDetail({ id }: { id: string }) {
     const [volume, setVolume] = useState<Volume | null>(null);
     const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
-    // biome-ignore lint/correctness/useExhaustiveDependencies: Not right
     useEffect(() => {
         let mounted = true;
         if (!id) return;
-        // If we already have the volume and ids match, don't re-fetch
-        if (volume && volume.meta.id === id) return;
         (async () => {
             try {
+                setError(null);
                 setLoading(true);
                 const v = await readVolume(id);
                 if (!mounted) return;
                 setVolume(v);
             } catch (e) {
                 console.error("failed to load volume", e);
+                if (mounted) setError(String(e));
             } finally {
                 if (mounted) setLoading(false);
             }
@@ -38,14 +38,16 @@ export default function VolumeDetail({ id }: { id: string }) {
     }, [id]);
 
     if (loading) return <div>Loading...</div>;
-    if (!volume) return <div>No volume selected</div>;
+    if (!volume) return <div>{error ? `Failed to load volume: ${error}` : "No volume selected"}</div>;
 
     return (
         <div>
-            <div><strong>{volume.meta.title}</strong> ({volume.meta.id})</div>
-            <div className="volume-meta">{volume.meta.updated_at}</div>
+            <div className="volume-header">
+                <div className="volume-title">{volume.meta.title}</div>
+                <div className="volume-detail-meta">{new Date(volume.meta.updated_at).toLocaleString()}</div>
+            </div>
             <div className="volume-detail-body">
-                <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize, rehypeHighlight]}>
+                <ReactMarkdown key={volume.meta.version} remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize, rehypeHighlight]}>
                     {volume.content}
                 </ReactMarkdown>
             </div>

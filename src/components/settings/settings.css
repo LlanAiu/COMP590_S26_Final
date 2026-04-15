@@ -1,0 +1,62 @@
+.settings-card {
+    max-width: 860px;
+    width: min(86vw, 860px);
+    min-width: 420px;
+    padding: 22px;
+    background: var(--card);
+    border: 1px solid var(--glass-border);
+    border-radius: 10px;
+    box-shadow: 0 6px 18px rgba(2, 6, 23, 0.6);
+}
+
+.settings-card h3 {
+    margin: 0 0 8px 0;
+}
+
+.settings-field {
+    margin-top: 12px;
+}
+
+.settings-field label {
+    display: block;
+    margin-bottom: 6px;
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.settings-field select {
+    width: 100%;
+    min-width: 280px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--glass-border);
+    background: rgba(255, 255, 255, 0.02);
+    color: var(--text);
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%), linear-gradient(to right, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.02));
+    background-position: calc(100% - 20px) calc(1em + 2px), calc(100% - 15px) calc(1em + 2px), 0 0;
+    background-size: 5px 5px, 5px 5px, 100% 100%;
+    background-repeat: no-repeat;
+}
+
+.settings-controls {
+    margin-top: 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+@media (max-width: 720px) {
+    .settings-card {
+        min-width: unset;
+        width: calc(100vw - 48px);
+        padding: 14px;
+    }
+}
+
+.settings-status {
+    color: var(--muted);
+    font-size: 13px;
+}

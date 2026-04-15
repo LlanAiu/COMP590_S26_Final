@@ -1,8 +1,8 @@
 .recording {
-    padding: 12px;
-    border: 1px solid #ddd;
-    border-radius: 6px;
-    background: #fff;
+    padding: 8px 12px;
+    border-radius: 10px;
+    background: var(--card);
+    border: 1px solid var(--glass-border);
 }
 
 .recording h3 {
@@ -11,9 +11,19 @@
 
 .recording-state {
     margin-bottom: 8px;
-    color: #333;
+    color: var(--text);
 }
 
 .recording-controls button+button {
     margin-left: 8px;
+}
+
+.recording .indicator {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: linear-gradient(90deg, #ff6b6b, #ffb86b);
+    display: inline-block;
+    margin-right: 8px;
+    box-shadow: 0 4px 10px rgba(255, 107, 107, 0.12);
 }
