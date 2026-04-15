@@ -8,11 +8,14 @@ function buildTree(list: VolumeIndexEntryFull[]): Node[] {
     const map = new Map<string, Node>();
     const roots: Node[] = [];
 
-    for (const it of list) {
+    // Sort input list by title (case-insensitive) for deterministic ordering
+    const sorted = [...list].sort((a, b) => (a.title || '').localeCompare(b.title || '', undefined, { sensitivity: 'base' }));
+
+    for (const it of sorted) {
         map.set(it.id, { ...it, children: [] });
     }
 
-    for (const it of list) {
+    for (const it of sorted) {
         const node = map.get(it.id);
         if (it.parent) {
             const p = map.get(it.parent);
@@ -25,6 +28,19 @@ function buildTree(list: VolumeIndexEntryFull[]): Node[] {
             roots.push(node);
         }
     }
+
+    // Sort children of each node recursively
+    function sortChildren(n: Node) {
+        n.children.sort((x, y) => (x.title || '').localeCompare(y.title || '', undefined, { sensitivity: 'base' }));
+        for (const c of n.children) sortChildren(c);
+    }
+
+    for (const node of map.values()) {
+        if (node.children && node.children.length) sortChildren(node);
+    }
+
+    // Ensure roots are sorted as well
+    roots.sort((x, y) => (x.title || '').localeCompare(y.title || '', undefined, { sensitivity: 'base' }));
 
     return roots;
 }
