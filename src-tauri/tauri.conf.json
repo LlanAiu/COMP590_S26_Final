@@ -1,6 +1,6 @@
 {
 	"$schema": "https://schema.tauri.app/config/2",
-	"productName": "auto-archives",
+	"productName": "tabulated",
 	"version": "0.1.0",
 	"identifier": "com.liual.auto-archives",
 	"build": {
@@ -12,9 +12,10 @@
 	"app": {
 		"windows": [
 			{
-				"title": "auto-archives",
+				"title": "Tabulated",
 				"width": 1000,
 				"height": 750,
+				"maximized": true,
 				"dragDropEnabled": false
 			}
 		],
