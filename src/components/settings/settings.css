@@ -60,14 +60,3 @@
     color: var(--muted);
     font-size: 13px;
 }
-
-/* Utility helpers for selects */
-.select-pill {
-    border-radius: 999px !important;
-}
-
-.select-no-border {
-    border: none !important;
-    box-shadow: none !important;
-    background: transparent !important;
-}
