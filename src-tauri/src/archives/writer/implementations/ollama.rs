@@ -17,7 +17,9 @@ impl OllamaWriter {
         let ollama = Ollama::default();
         OllamaWriter {
             ollama: Arc::new(ollama),
-            model: Arc::new(RwLock::new(model.unwrap_or_else(|| OLLAMA_MODEL.to_string()))),
+            model: Arc::new(RwLock::new(
+                model.unwrap_or_else(|| OLLAMA_MODEL.to_string()),
+            )),
         }
     }
 
@@ -38,7 +40,7 @@ impl Writer for OllamaWriter {
         Box::pin(async move {
             // build a clear prompt to integrate notes into the existing document
             let mut prompt = String::new();
-            prompt.push_str("You are a careful editor. Given an existing document and a set of new short notes, integrate the new notes into the existing document so the result reads naturally and preserves the original content.\n\n");
+            prompt.push_str("Given an existing document and a set of new short notes, integrate the new notes into the existing document so the result reads naturally and preserves the original content and voice.\n\n");
             prompt.push_str("Requirements:\n");
             prompt.push_str("- Keep existing content; do not delete unless the note explicitly says to remove or replace.\n");
             prompt.push_str("- Integrate each note in a logical place (create headings or sections if needed).\n");
@@ -53,7 +55,8 @@ impl Writer for OllamaWriter {
                 prompt.push_str(&format!("- [{}] {}\n", i + 1, n.content.trim()));
             }
 
-            let gen_req = GenerationRequest::new(self.model.read().unwrap().clone(), prompt);
+            let gen_req =
+                GenerationRequest::new(self.model.read().unwrap().clone(), prompt).think(false);
             let res = self
                 .ollama
                 .generate(gen_req)

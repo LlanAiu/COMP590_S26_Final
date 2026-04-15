@@ -148,7 +148,7 @@ impl OllamaModule {
                 recv(consolidated_receiver) -> msg => {
                     match msg {
                         Ok(sentences) => {
-                            let mut categories: Vec<String> = TEMP_CATEGORIES.iter().map(|s| s.to_string()).collect();
+                            let mut categories: Vec<String> = Vec::new();
                             if let Some(db) = categories_db_clone.as_ref() {
                                 match tauri::async_runtime::block_on(db.list_index()) {
                                     Ok(list) => {
@@ -239,14 +239,14 @@ fn build_prompt(transcript: &Transcript, categories: &[String]) -> String {
     let joined = transcript.join("\n");
 
     let mut prompt = String::new();
-    prompt.push_str("You are an assistant that reads an audio transcript and returns concise notes and assigns each note a category from the provided list.\n\n");
-    prompt.push_str("Categories (Name - Description):\n");
+    prompt.push_str("As a personal archivist, your job is to parse through the provided audio transcript of the user's monologue and return 0 - 2 concise, but complete notes. Then assign each note to the category that the note most closely aligns with from the provided list. Expect faulty punctuation and transcription typos that you'll need to infer the meaning through.\n\n");
+    prompt.push_str("Categories (Name - Description) -- DO NOT EXTRACT NOTES FROM HERE:\n");
     for category in categories.iter() {
         prompt.push_str(&format!("- {}\n", category));
     }
-    prompt.push_str("\nTranscript:\n");
+    prompt.push_str("\n Transcript -- EXTRACT NOTES FROM HERE:\n");
     prompt.push_str(&joined);
-    prompt.push_str("\n\nOutput format: A JSON array of note objects composed of \"content\" (the important idea) and \"category\" (which of the listed category names it best fits under).\n");
+    prompt.push_str("\n\nOutput format: A JSON array of note objects composed of \"content\" (the important idea) and \"category\" (which of the listed category names it fits under). Only extract the important information, ignoring filler words or irrelevant content. \n");
 
     prompt
 }
@@ -257,7 +257,7 @@ async fn send_message_ollama(
     model: String,
 ) -> Result<String, SummarizationError> {
     let res = ollama
-        .generate(GenerationRequest::new(model, message))
+        .generate(GenerationRequest::new(model, message).think(false))
         .await
         .map_err(|err| SummarizationError::InternalError(err.to_string()))?;
 

@@ -83,7 +83,7 @@ Return a JSON array of action objects. If no actions are appropriate, please ret
         );
 
         let model = self.model.read().unwrap().clone();
-        let gen_req = GenerationRequest::new(model, prompt);
+        let gen_req = GenerationRequest::new(model, prompt).think(false);
         let res = self
             .ollama
             .generate(gen_req)
