@@ -683,7 +683,13 @@ impl FileDatabase {
         let id = id.to_string();
         spawn_blocking(move || -> Result<Volume, VolumeError> {
             let db = FileDatabase { base: base.clone() };
-            let dir = db.find_directory_for_id(&id).ok_or(VolumeError::NotFound)?;
+            let dir = db
+                .find_directory_for_id_recursive(&id)
+                .ok_or(VolumeError::NotFound)?;
+            eprintln!(
+                "[FileDatabase] set_keypoints resolved id {} -> {:?}",
+                id, dir
+            );
 
             let meta_path = dir.join(META_FILE);
             let content_path = dir.join(CONTENT_FILE);
@@ -728,7 +734,13 @@ impl FileDatabase {
         let id = id.to_string();
         spawn_blocking(move || -> Result<Volume, VolumeError> {
             let db = FileDatabase { base: base.clone() };
-            let dir = db.find_directory_for_id(&id).ok_or(VolumeError::NotFound)?;
+            let dir = db
+                .find_directory_for_id_recursive(&id)
+                .ok_or(VolumeError::NotFound)?;
+            eprintln!(
+                "[FileDatabase] set_ai_summary resolved id {} -> {:?}",
+                id, dir
+            );
 
             let meta_path = dir.join(META_FILE);
             let content_path = dir.join(CONTENT_FILE);
