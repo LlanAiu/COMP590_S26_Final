@@ -8,7 +8,7 @@ type Props = {
 
 export default function Sidebar({ page, setPage }: Props) {
     return (
-        <div style={{ width: 36, zIndex: 20, display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 12, borderRight: "1px solid var(--border)" }}>
+        <div style={{ position: "fixed", width: 36, zIndex: 20, display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 12, borderRight: "1px solid var(--border)" }}>
             <button aria-label="volumes" title="Volumes" onClick={() => setPage("volumes")} style={{ background: "none", border: "none", padding: 6, cursor: "pointer", opacity: page === "volumes" ? 1 : 0.6 }}>
                 <BookOpen size={20} />
             </button>

@@ -18,15 +18,10 @@
     --glass-border: rgba(255, 255, 255, 0.06);
     --header-height: 56px;
 
-    height: 100vh;
     font-family: var(--font-sans);
     font-size: var(--font-size);
     line-height: var(--line-height);
     color: var(--text);
-    background: radial-gradient(1200px 400px at 10% 10%, rgba(96, 165, 250, 0.06), transparent), var(--bg);
-
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
 }
 
 /* Ensure height/padding calculations include borders/padding to avoid 100% overflow */
@@ -37,6 +32,11 @@
 }
 
 body {
+    min-height: 100vh;
+    background: radial-gradient(1200px 400px at 10% 10%, rgba(96, 165, 250, 0.06), transparent), var(--bg);
+
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
     margin: 2px;
 }
 
@@ -74,8 +74,8 @@ body {
 }
 
 .app-main {
-    margin-left: 320px;
-    margin-right: 330px;
+    margin-left: 346px;
+    margin-right: 315px;
 }
 
 .app-header {
@@ -160,7 +160,7 @@ body {
 
 .control-panel li {
     margin-bottom: 8px;
-    margin-left: 14px;
+    margin-left: 15px;
 }
 
 .control-panel .updates {
@@ -225,4 +225,27 @@ ul {
 
 .control-log-list li div:last-child {
     margin-top: 4px;
+}
+
+/* Select / dropdown styling to match app theme and improve contrast */
+select {
+    background: rgba(255, 255, 255, 0.02);
+    color: var(--text);
+    border: 1px solid var(--glass-border);
+    padding: 8px 10px;
+    border-radius: 8px;
+    min-height: 38px;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%), linear-gradient(to right, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.02));
+    background-position: calc(100% - 20px) calc(1em + 2px), calc(100% - 15px) calc(1em + 2px), 0 0;
+    background-size: 5px 5px, 5px 5px, 100% 100%;
+    background-repeat: no-repeat;
+}
+
+/* Options should contrast on dark background */
+select option {
+    background: var(--bg);
+    color: var(--text);
 }
